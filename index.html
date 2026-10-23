@@ -82,6 +82,7 @@ details pre{white-space:pre-wrap;word-break:break-word;font-family:var(--mono);f
 .cam{position:fixed;inset:0;z-index:10;background:#000}
 .cam video{width:100%;height:100%;object-fit:cover;display:block}
 .cam-focus{position:absolute;width:64px;height:64px;margin:-32px 0 0 -32px;border:2px solid #fff;border-radius:50%;pointer-events:none}
+.cam-wait{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);margin:0;background:rgba(0,0,0,.6);color:#fff;padding:10px 16px;border-radius:99px;font-weight:600;white-space:nowrap}
 .cam-round{position:absolute;width:44px;height:44px;border-radius:50%;background:rgba(0,0,0,.45);color:#fff;font-size:1.1rem;display:grid;place-items:center;padding:0}
 .cam-close{top:max(14px,env(safe-area-inset-top,0px));left:14px}
 .cam-torch{top:max(14px,env(safe-area-inset-top,0px));right:14px}
@@ -181,6 +182,7 @@ details pre{white-space:pre-wrap;word-break:break-word;font-family:var(--mono);f
 <div class="cam" id="cam" hidden>
   <video id="cam-v" playsinline muted autoplay></video>
   <i class="cam-focus" id="cam-focus" hidden></i>
+  <p class="cam-wait" id="cam-wait" hidden>Quieto… eligiendo la toma más nítida</p>
   <button class="cam-round cam-close" id="cam-x" type="button" aria-label="Cerrar cámara">✕</button>
   <button class="cam-round cam-torch" id="cam-torch" type="button" aria-label="Linterna" aria-pressed="false" hidden>⚡</button>
   <div class="cam-bar">
@@ -323,10 +325,15 @@ function refresh() {
 }
 for (const id of ["f-inc", "f-mot", "f-tel"]) $(id).addEventListener("input", refresh);
 $("f-pri").addEventListener("input", () => { $("w-pri").hidden = true; suggest(); refresh(); });
-$("f-pri").addEventListener("blur", () => { $("s-pri").hidden = true; });
+let priBefore = "";
+$("f-pri").addEventListener("focus", () => { priBefore = $("f-pri").value; $("f-pri").value = ""; $("s-pri").hidden = true; });
+$("f-pri").addEventListener("blur", () => {
+  $("s-pri").hidden = true;
+  if (!$("f-pri").value.trim() && priBefore) { $("f-pri").value = priBefore; refresh(); }
+});
 $("f-pri").addEventListener("change", () => { $("w-pri").hidden = true; refresh(); chips($("c-pri"), [...$("c-pri").querySelectorAll("button")].map(b => b.textContent), priName($("f-pri").value), pickPri); });
 $("f-msg").addEventListener("input", () => { msgEdited = true; });
-function pickPri(v) { $("f-pri").value = v; $("s-pri").hidden = true; $("f-pri").dispatchEvent(new Event("change")); }
+function pickPri(v) { $("f-pri").value = v; $("s-pri").hidden = true; $("f-pri").blur(); $("f-pri").dispatchEvent(new Event("change")); }
 
 function getWorker() {
   if (!workerReady) {
@@ -502,17 +509,46 @@ $("cam-torch").onclick = () => {
   const on = $("cam-torch").getAttribute("aria-pressed") !== "true";
   track.applyConstraints({ advanced: [{ torch: on }] }).then(() => $("cam-torch").setAttribute("aria-pressed", String(on))).catch(() => {});
 };
+// Nitidez de una imagen: varianza del laplaciano en el centro, reducido a 800 px de ancho
+function sharpness(img, w, h) {
+  const W = 800, H = Math.round(800 * h / w), c = document.createElement("canvas");
+  c.width = W; c.height = H;
+  const g = c.getContext("2d", { willReadFrequently: true });
+  g.drawImage(img, w * 0.15, h * 0.15, w * 0.7, h * 0.7, 0, 0, W, H);
+  const d = g.getImageData(0, 0, W, H).data, L = new Float32Array(W * H);
+  for (let i = 0; i < W * H; i++) L[i] = d[i * 4] * 0.3 + d[i * 4 + 1] * 0.59 + d[i * 4 + 2] * 0.11;
+  let sum = 0, sum2 = 0, n = 0;
+  for (let y = 1; y < H - 1; y++) for (let x = 1; x < W - 1; x++) {
+    const i = y * W + x, v = 4 * L[i] - L[i - 1] - L[i + 1] - L[i - W] - L[i + W];
+    sum += v; sum2 += v * v; n++;
+  }
+  return sum2 / n - (sum / n) ** 2;
+}
+// Al tocar el disparador se toman varias escenas en un segundo y se queda la más nítida
 $("cam-shot").onclick = async () => {
   if (!track) return;
-  $("cam-shot").disabled = true;
-  let blob = null;
-  try { if ("ImageCapture" in window) blob = await new ImageCapture(track).takePhoto(); } catch {}
-  if (!blob) {
-    const v = $("cam-v"), c = document.createElement("canvas");
-    c.width = v.videoWidth; c.height = v.videoHeight; c.getContext("2d").drawImage(v, 0, 0);
-    blob = await new Promise(r => c.toBlob(r, "image/jpeg", 0.92));
+  $("cam-shot").disabled = true; $("cam-wait").hidden = false;
+  const v = $("cam-v"), vw = v.videoWidth, vh = v.videoHeight;
+  let best = null, bestS = -1;
+  for (let i = 0; i < 8 && vw; i++) {
+    const sc = sharpness(v, vw, vh);
+    if (sc > bestS) {
+      bestS = sc; best = best || document.createElement("canvas");
+      best.width = vw; best.height = vh; best.getContext("2d").drawImage(v, 0, 0);
+    }
+    await new Promise(r => setTimeout(r, 120));
   }
-  $("cam-shot").disabled = false;
+  // La foto de la cámara tiene más resolución: se usa si es casi tan nítida como la mejor escena
+  let blob = null;
+  try {
+    if ("ImageCapture" in window) {
+      const ph = await new ImageCapture(track).takePhoto();
+      const bm = await createImageBitmap(ph);
+      if (!best || sharpness(bm, bm.width, bm.height) >= 0.8 * bestS) blob = ph;
+    }
+  } catch {}
+  if (!blob && best) blob = await new Promise(r => best.toBlob(r, "image/jpeg", 0.92));
+  $("cam-shot").disabled = false; $("cam-wait").hidden = true;
   await new Promise(r => { addEventListener("popstate", r, { once: true }); history.back(); });
   if (blob) processFile(new File([blob], "incidencia.jpg", { type: blob.type || "image/jpeg" }));
 };
