@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Marcador Llenar Bitácora</title>
+<style>
+:root{--bg:#f3f5f6;--surface:#fff;--ink:#14212b;--muted:#5b6b77;--line:#d6dee3;--accent:#0b6e8a;--accent-ink:#fff}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0f171d;--surface:#17222a;--ink:#e4ecf0;--muted:#93a5b1;--line:#2a3943;--accent:#4fb3cf;--accent-ink:#06222b;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#0f171d;--surface:#17222a;--ink:#e4ecf0;--muted:#93a5b1;--line:#2a3943;--accent:#4fb3cf;--accent-ink:#06222b;color-scheme:dark}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 system-ui,"Segoe UI",Roboto,sans-serif;padding:24px 16px}
+main{max-width:640px;margin:0 auto;display:grid;gap:16px}
+h1{font-size:1.3rem;margin:0}
+p,li{color:var(--muted)}
+input{font:inherit;width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink)}
+.mark{display:inline-block;padding:12px 18px;border-radius:10px;background:var(--accent);color:var(--accent-ink);font-weight:600;text-decoration:none;cursor:grab}
+button{font:inherit;padding:10px 16px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--ink);cursor:pointer}
+ol{margin:0;padding-left:20px}
+</style>
+</head>
+<body>
+<main>
+  <h1>Marcador «Llenar Bitácora» v5</h1>
+  <label for="url">Enlace de la hoja de Google (el de la aplicación web, termina en <code>/exec</code>)</label>
+  <input id="url" placeholder="https://script.google.com/macros/s/…/exec" autocomplete="off">
+  <p id="estado">Pega el enlace para preparar el marcador. Sin enlace, el marcador funciona igual pegando la fila.</p>
+  <div><a class="mark" id="mark" href="#">LLENAR BITACORA</a></div>
+  <ol>
+    <li>Arrastra el botón azul a la barra de marcadores; o</li>
+    <li>toca «Copiar código», clic derecho en tu marcador LLENAR BITACORA → Editar, y pega el código en URL.</li>
+  </ol>
+  <div><button id="copy" type="button">Copiar código</button> <span id="ok"></span></div>
+</main>
+<script>
+let codigo = "";
+const url = document.getElementById("url");
+try { url.value = localStorage.getItem("hoja") || ""; } catch {}
+fetch("marcador.js").then(r => r.text()).then(t => { codigo = t; armar(); });
+function armar() {
+  const u = url.value.trim();
+  try { localStorage.setItem("hoja", u); } catch {}
+  // Los comentarios de línea entera se quitan para que el marcador sea más corto
+  const js = codigo.split("\n").filter(l => !/^\s*\/\//.test(l)).join("\n").replace("__HOJA__", /^https:\/\/script\.google(usercontent)?\.com\//.test(u) ? u : "");
+  document.getElementById("mark").href = "javascript:" + encodeURIComponent(js);
+  document.getElementById("estado").textContent = /^https:/.test(u) ? "Listo: el marcador leerá las fallas de esa hoja." : "Sin enlace: el marcador pedirá pegar la fila.";
+}
+url.addEventListener("input", armar);
+document.getElementById("mark").onclick = e => { e.preventDefault(); alert("Arrástralo a la barra de marcadores; aquí no hace nada."); };
+document.getElementById("copy").onclick = async () => {
+  try { await navigator.clipboard.writeText(document.getElementById("mark").href); document.getElementById("ok").textContent = "Copiado."; }
+  catch { document.getElementById("ok").textContent = "No se pudo copiar; arrastra el botón."; }
+};
+</script>
+</body>
+</html>
