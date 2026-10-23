@@ -43,6 +43,7 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
 .big.primary span{color:inherit;opacity:.85}
 .big[disabled]{opacity:.55;cursor:not-allowed}
 .back{background:none;color:var(--accent);padding:4px 0;font-weight:600}
+.top{display:flex;justify-content:space-between;align-items:center}
 .shot{display:flex;align-items:center;justify-content:center;gap:10px;padding:18px;background:var(--accent);color:var(--accent-ink);font-weight:600;font-size:1.05rem;text-align:center}
 .shot input{position:absolute;width:1px;height:1px;opacity:0}
 .pick{display:grid;grid-template-columns:1fr 1fr;gap:10px}
@@ -62,18 +63,17 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
 .chip{padding:8px 12px;background:var(--chip);color:var(--ink);font-size:.95rem}
 .chip[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink)}
 .flag{font-size:.85rem;color:var(--warn)}
-.group{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 16px;border-radius:10px;background:var(--surface);border:2px solid var(--wa)}
+.group{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 14px;border-radius:10px;background:var(--surface);border:2px solid var(--wa)}
 .group b{font-size:1.1rem}
 .msg{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px;display:grid;gap:10px}
-textarea{min-height:76px;resize:vertical;font-size:1rem}
-.actions{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+textarea{min-height:64px;resize:vertical;font-size:1rem}
+.actions{display:grid;grid-template-columns:2fr 1fr;gap:10px}
 .actions button{padding:14px;font-weight:600}
 .copy{background:var(--chip);color:var(--ink)}
 .share{background:var(--wa);color:#fff}
 .note{font-size:.9rem;padding:10px 12px;border-radius:8px;background:var(--chip)}
 details{font-size:.85rem;color:var(--muted)}
 details pre{white-space:pre-wrap;word-break:break-word;font-family:var(--mono);font-size:.75rem;max-height:240px;overflow:auto}
-.again{background:none;border:1px solid var(--line);color:var(--ink);padding:12px}
 @media (prefers-reduced-motion:reduce){.bar i{transition:none}}
 </style>
 
@@ -93,14 +93,25 @@ details pre{white-space:pre-wrap;word-break:break-word;font-family:var(--mono);f
 
   <section id="inc" hidden>
     <div class="fields">
-      <button class="back" id="back">‹ Inicio</button>
-      <div class="pick">
+      <div class="top"><button class="back" id="back">‹ Inicio</button><button class="back" id="again" hidden>Nueva foto ›</button></div>
+      <div class="pick" id="pick">
         <label class="btn shot"><input type="file" id="photo" accept="image/*" capture="environment">Tomar foto</label>
         <label class="btn shot alt"><input type="file" id="gallery" accept="image/*">Elegir de la galería</label>
       </div>
       <div class="preview" id="prev" hidden><img id="thumb" alt="Foto de la pantalla"><div style="flex:1;display:grid;gap:6px"><div class="bar"><i id="barfill"></i></div><span class="status" id="status">Preparando el lector…</span></div></div>
 
       <div id="result" class="fields" hidden>
+        <div class="msg">
+          <div class="group"><span>Enviar a</span><b id="grp">—</b></div>
+          <div class="chips" id="c-grp"></div>
+          <textarea id="f-msg" aria-label="Mensaje"></textarea>
+          <div class="actions">
+            <button class="share" id="share">Compartir en WhatsApp</button>
+            <button class="copy" id="copy">Copiar texto</button>
+          </div>
+          <div class="note" id="note" hidden></div>
+        </div>
+        <p class="tip">Si algo salió mal, corrígelo aquí abajo y el mensaje se actualiza solo.</p>
         <div class="field">
           <label for="f-inc">Incidencia (últimos 6 dígitos)</label>
           <div class="chips" id="c-inc"></div>
@@ -124,21 +135,6 @@ details pre{white-space:pre-wrap;word-break:break-word;font-family:var(--mono);f
           <input id="f-tel" class="mono" inputmode="numeric" maxlength="10" autocomplete="off">
           <span class="flag" id="w-tel" hidden></span>
         </div>
-        <div class="field">
-          <label>Enviar al grupo</label>
-          <div class="chips" id="c-grp"></div>
-          <div class="group"><span>Grupo de WhatsApp</span><b id="grp">—</b></div>
-        </div>
-        <div class="msg">
-          <label for="f-msg" class="eyebrow">Mensaje</label>
-          <textarea id="f-msg"></textarea>
-          <div class="actions">
-            <button class="copy" id="copy">Copiar texto</button>
-            <button class="share" id="share">Compartir en WhatsApp</button>
-          </div>
-          <div class="note" id="note" hidden></div>
-        </div>
-        <button class="again" id="again">Nueva foto</button>
         <details><summary>Ver lo que leyó la app</summary><pre id="raw"></pre></details>
       </div>
     </div>
@@ -278,11 +274,11 @@ async function prep(file) {
 }
 $("go-inc").onclick = () => { $("home").hidden = true; $("inc").hidden = false; getWorker().catch(() => {}); };
 $("back").onclick = () => { $("inc").hidden = true; $("home").hidden = false; };
-$("again").onclick = () => { $("photo").value = ""; $("photo").click(); };
+$("again").onclick = () => { $("again").hidden = true; $("result").hidden = true; $("prev").hidden = true; $("pick").hidden = false; window.scrollTo(0, 0); };
 $("gallery").addEventListener("change", e => readPhoto(e));
 $("photo").addEventListener("change", e => readPhoto(e));
 async function readPhoto(e) {
-  const file = e.target.files[0]; if (!file) return;
+  const file = e.target.files[0]; e.target.value = ""; if (!file) return;
   photoFile = file; msgEdited = false;
   $("thumb").src = URL.createObjectURL(file);
   $("prev").hidden = false; $("result").hidden = true; $("note").hidden = true;
@@ -308,6 +304,8 @@ async function readPhoto(e) {
     $("status").textContent = "Listo. Revisa los datos antes de enviar.";
     $("barfill").style.width = "100%";
     $("result").hidden = false;
+    $("pick").hidden = true; $("prev").hidden = true; $("again").hidden = false;
+    window.scrollTo(0, 0);
   } catch (err) {
     $("status").textContent = "No se pudo leer la foto. Vuelve a intentarlo con una foto más derecha y cercana.";
   }
