@@ -272,9 +272,19 @@ async function prep(file) {
   g.drawImage(img, 0, 0, c.width, c.height);
   return c;
 }
-$("go-inc").onclick = () => { $("home").hidden = true; $("inc").hidden = false; getWorker().catch(() => {}); };
-$("back").onclick = () => { $("inc").hidden = true; $("home").hidden = false; };
-$("again").onclick = () => { $("again").hidden = true; $("result").hidden = true; $("prev").hidden = true; $("pick").hidden = false; window.scrollTo(0, 0); };
+// Pantallas en el historial del navegador, para que el gesto atrás de Android vuelva dentro de la app
+function show(v) {
+  $("home").hidden = v !== "home"; $("inc").hidden = v === "home";
+  const res = v === "res" && !!$("f-msg").value;
+  $("result").hidden = !res; $("again").hidden = !res; $("pick").hidden = res;
+  if (!res) $("prev").hidden = true;
+  window.scrollTo(0, 0);
+}
+history.replaceState({ v: "home" }, "");
+addEventListener("popstate", e => show((e.state && e.state.v) || "home"));
+$("go-inc").onclick = () => { history.pushState({ v: "inc" }, ""); show("inc"); getWorker().catch(() => {}); };
+$("back").onclick = () => history.back();
+$("again").onclick = () => history.back();
 $("gallery").addEventListener("change", e => readPhoto(e));
 $("photo").addEventListener("change", e => readPhoto(e));
 async function readPhoto(e) {
@@ -303,9 +313,8 @@ async function readPhoto(e) {
     grupo = ""; refresh();
     $("status").textContent = "Listo. Revisa los datos antes de enviar.";
     $("barfill").style.width = "100%";
-    $("result").hidden = false;
-    $("pick").hidden = true; $("prev").hidden = true; $("again").hidden = false;
-    window.scrollTo(0, 0);
+    if (history.state && history.state.v === "res") show("res");
+    else { history.pushState({ v: "res" }, ""); show("res"); }
   } catch (err) {
     $("status").textContent = "No se pudo leer la foto. Vuelve a intentarlo con una foto más derecha y cercana.";
   }
