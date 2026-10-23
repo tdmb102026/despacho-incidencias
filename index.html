@@ -1,0 +1,342 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0b6e8a">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<style>*,*::before,*::after{box-sizing:border-box}body{margin:0}img{max-width:100%}</style>
+<title>Despacho de Incidencias</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap">
+<style>
+/* Layout: una columna tipo app de celular; tarjetas solo para la foto y el mensaje final */
+:root{
+  --bg:#f3f5f6; --surface:#ffffff; --ink:#14212b; --muted:#5b6b77; --line:#d6dee3;
+  --accent:#0b6e8a; --accent-ink:#ffffff; --warn:#b45309; --ok:#1f7a4a; --wa:#128c4b; --chip:#e6eef2;
+  --sans:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,"SFMono-Regular",Menlo,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0f171d; --surface:#17222a; --ink:#e4ecf0; --muted:#93a5b1; --line:#2a3943;
+  --accent:#4fb3cf; --accent-ink:#06222b; --warn:#f0a050; --ok:#5cc58c; --wa:#25d366; --chip:#21313b; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0f171d; --surface:#17222a; --ink:#e4ecf0; --muted:#93a5b1; --line:#2a3943;
+  --accent:#4fb3cf; --accent-ink:#06222b; --warn:#f0a050; --ok:#5cc58c; --wa:#25d366; --chip:#21313b; color-scheme:dark}
+[hidden]{display:none!important}
+html,body{background:var(--bg);color:var(--ink)}
+body{font-family:var(--sans);font-size:16px;line-height:1.45;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:16px 40px}
+.wrap{max-width:560px;margin:0 auto;display:flex;flex-direction:column;gap:18px}
+header{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap}
+h1{font-size:1.3rem;margin:0;font-weight:700;letter-spacing:-.01em;text-wrap:balance}
+.eyebrow{font-family:var(--mono);font-size:.75rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+button,.btn{font:inherit;border:0;border-radius:10px;cursor:pointer}
+button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible,label.btn:focus-within{outline:3px solid var(--accent);outline-offset:2px}
+.home{display:grid;gap:12px}
+.big{display:flex;flex-direction:column;align-items:flex-start;gap:4px;padding:20px;background:var(--surface);border:1px solid var(--line);text-align:left;color:var(--ink)}
+.big strong{font-size:1.15rem}
+.big span{color:var(--muted);font-size:.9rem}
+.big.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.big.primary span{color:inherit;opacity:.85}
+.big[disabled]{opacity:.55;cursor:not-allowed}
+.back{background:none;color:var(--accent);padding:4px 0;font-weight:600}
+.shot{display:flex;align-items:center;justify-content:center;gap:10px;padding:18px;background:var(--accent);color:var(--accent-ink);font-weight:600;font-size:1.05rem;text-align:center}
+.shot input{position:absolute;width:1px;height:1px;opacity:0}
+.pick{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.shot.alt{background:var(--chip);color:var(--ink)}
+.tip{color:var(--muted);font-size:.9rem;margin:0}
+.preview{display:flex;gap:12px;align-items:center}
+.preview img{width:96px;height:72px;object-fit:cover;border-radius:8px;border:1px solid var(--line)}
+.bar{height:8px;background:var(--chip);border-radius:99px;overflow:hidden;flex:1}
+.bar i{display:block;height:100%;width:0;background:var(--accent);transition:width .2s}
+.status{font-size:.9rem;color:var(--muted)}
+.fields{display:grid;gap:16px}
+.field{display:grid;gap:6px;min-width:0}
+.field>label{font-size:.8rem;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--muted)}
+.field input,.field select,textarea{font:inherit;width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink)}
+.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{padding:8px 12px;background:var(--chip);color:var(--ink);font-size:.95rem}
+.chip[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink)}
+.flag{font-size:.85rem;color:var(--warn)}
+.group{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 16px;border-radius:10px;background:var(--surface);border:2px solid var(--wa)}
+.group b{font-size:1.1rem}
+.msg{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px;display:grid;gap:10px}
+textarea{min-height:76px;resize:vertical;font-size:1rem}
+.actions{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.actions button{padding:14px;font-weight:600}
+.copy{background:var(--chip);color:var(--ink)}
+.share{background:var(--wa);color:#fff}
+.note{font-size:.9rem;padding:10px 12px;border-radius:8px;background:var(--chip)}
+details{font-size:.85rem;color:var(--muted)}
+details pre{white-space:pre-wrap;word-break:break-word;font-family:var(--mono);font-size:.75rem;max-height:240px;overflow:auto}
+.again{background:none;border:1px solid var(--line);color:var(--ink);padding:12px}
+@media (prefers-reduced-motion:reduce){.bar i{transition:none}}
+</style>
+
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Despacho de Incidencias</h1>
+    <span class="eyebrow">EEASA · CECON</span>
+  </header>
+
+  <section id="home" class="home">
+    <button class="big primary" id="go-inc"><strong>Incidencias</strong><span>Foto de Gestión de incidencias → mensaje para WhatsApp</span></button>
+    <button class="big" disabled><strong>Fallas internas</strong><span>Bitácora · próximamente</span></button>
+    <p class="tip">Toma la foto de cerca, con la fila de la llamada y el recuadro del Comentario visibles.</p>
+  </section>
+
+  <section id="inc" hidden>
+    <div class="fields">
+      <button class="back" id="back">‹ Inicio</button>
+      <div class="pick">
+        <label class="btn shot"><input type="file" id="photo" accept="image/*" capture="environment">Tomar foto</label>
+        <label class="btn shot alt"><input type="file" id="gallery" accept="image/*">Elegir de la galería</label>
+      </div>
+      <div class="preview" id="prev" hidden><img id="thumb" alt="Foto de la pantalla"><div style="flex:1;display:grid;gap:6px"><div class="bar"><i id="barfill"></i></div><span class="status" id="status">Preparando el lector…</span></div></div>
+
+      <div id="result" class="fields" hidden>
+        <div class="field">
+          <label for="f-inc">Incidencia (últimos 6 dígitos)</label>
+          <div class="chips" id="c-inc"></div>
+          <input id="f-inc" class="mono" inputmode="numeric" maxlength="6" autocomplete="off">
+          <span class="flag" id="w-inc" hidden></span>
+        </div>
+        <div class="field">
+          <label for="f-mot">Motivo</label>
+          <input id="f-mot" list="motivos" autocomplete="off">
+          <datalist id="motivos"></datalist>
+        </div>
+        <div class="field">
+          <label for="f-pri">Primario</label>
+          <div class="chips" id="c-pri"></div>
+          <select id="f-pri"></select>
+          <span class="flag" id="w-pri" hidden></span>
+        </div>
+        <div class="field">
+          <label for="f-tel">Teléfono</label>
+          <div class="chips" id="c-tel"></div>
+          <input id="f-tel" class="mono" inputmode="numeric" maxlength="10" autocomplete="off">
+          <span class="flag" id="w-tel" hidden></span>
+        </div>
+        <div class="field">
+          <label>Enviar al grupo</label>
+          <div class="chips" id="c-grp"></div>
+          <div class="group"><span>Grupo de WhatsApp</span><b id="grp">—</b></div>
+        </div>
+        <div class="msg">
+          <label for="f-msg" class="eyebrow">Mensaje</label>
+          <textarea id="f-msg"></textarea>
+          <div class="actions">
+            <button class="copy" id="copy">Copiar texto</button>
+            <button class="share" id="share">Compartir en WhatsApp</button>
+          </div>
+          <div class="note" id="note" hidden></div>
+        </div>
+        <button class="again" id="again">Nueva foto</button>
+        <details><summary>Ver lo que leyó la app</summary><pre id="raw"></pre></details>
+      </div>
+    </div>
+  </section>
+</div>
+
+<script src="ocr/tesseract.min.js"></script>
+<script>
+const ALIM = [["Agoyán", "Ulba Río Verde", "Ag. Baños", ""], ["Atocha", "Pinllo", "Reparaciones CECON", "Móvil 30 Rural"], ["Atocha", "Pilisurco", "Reparaciones CECON", "Móvil 30 Rural"], ["Atocha", "Atocha", "Reparaciones CECON", ""], ["Atocha", "Maldonado", "Reparaciones CECON", ""], ["Atocha", "Martínez", "Reparaciones CECON", ""], ["Atocha", "La Victoria", "Reparaciones CECON", ""], ["Baños", "Baños", "Ag. Baños", ""], ["Baños", "San Vicente", "Ag. Baños", ""], ["Baños", "Pititig", "Ag. Baños", ""], ["Batán", "España", "Reparaciones CECON", ""], ["Batán", "Pérez de Anda", "Reparaciones CECON", ""], ["Batán", "Urbina", "Reparaciones CECON", ""], ["Batán", "Ficoa", "Reparaciones CECON", ""], ["Batán", "Miraflores", "Reparaciones CECON", ""], ["Batán", "Quisapincha", "Móvil 30 Rural", ""], ["Batán", "El Tropezón", "Móvil 30 Rural", "Reparaciones CECON"], ["Huachi", "Santa Rosa", "Móvil 30 Rural", ""], ["Huachi", "Cervantes", "Reparaciones CECON", ""], ["Huachi", "Magdalenas", "Reparaciones CECON", "Móvil 30 Rural"], ["Huachi", "José Peralta", "Reparaciones CECON", ""], ["Huachi", "Víctor Hugo", "Reparaciones CECON", ""], ["Huachi", "Mall de los Andes", "Reparaciones CECON", ""], ["Huachi", "Shopping Ambato", "Reparaciones CECON", ""], ["Huachi", "Miñarica", "Reparaciones CECON", ""], ["Huachi", "Carmelitas", "Reparaciones CECON", "Móvil 30 Rural"], ["Huachi", "Manuelita Sáenz", "Reparaciones CECON", ""], ["Huachi", "Industrial", "Reparaciones CECON", "Móvil 30 Rural"], ["Loreto", "Ingahurco", "Reparaciones CECON", ""], ["Loreto", "La Pradera", "Reparaciones CECON", ""], ["Loreto", "Catiglata", "Reparaciones CECON", ""], ["Loreto", "Unidad Nacional", "Reparaciones CECON", ""], ["Loreto", "Letamendi", "Reparaciones CECON", ""], ["Loreto", "Cashapamba", "Reparaciones CECON", ""], ["Loreto", "Ferroviaria", "Reparaciones CECON", ""], ["Loreto", "Subterránea", "Reparaciones CECON", ""], ["Loreto", "12 de Noviembre", "Reparaciones CECON", ""], ["Loreto", "San Antonio", "Reparaciones CECON", ""], ["Loreto", "Montalvo", "Reparaciones CECON", "Móvil 30 Rural;Agencia Quero CECON"], ["Loreto", "Manzana de Oro", "Reparaciones CECON", ""], ["Loreto", "Tisaleo", "Móvil 30 Rural", "Reparaciones CECON"], ["Loreto", "Huachi Grande", "Reparaciones CECON", "Móvil 30 Rural"], ["Mushullacta", "Pablo VI", "DZOP INCIDENCIAS", ""], ["Mushullacta", "Simón Bolívar", "DZOP INCIDENCIAS", ""], ["Mushullacta", "Palora", "DZOP INCIDENCIAS", ""], ["Mushullacta", "Consuelo", "DZOP INCIDENCIAS", ""], ["Oriente", "Bolivariana", "Reparaciones CECON", ""], ["Oriente", "Techo Propio", "Reparaciones CECON", ""], ["Oriente", "Real Audiencia", "Reparaciones CECON", ""], ["Oriente", "La Joya", "Reparaciones CECON", ""], ["Oriente", "El Cóndor", "Reparaciones CECON", ""], ["Oriente", "Universidad", "Reparaciones CECON", ""], ["Oriente", "American Park", "Reparaciones CECON", ""], ["Pelileo", "El Tambo", "Ag. Pelileo", ""], ["Pelileo", "Olmedo", "Ag. Pelileo", ""], ["Pelileo", "Pelileo", "Ag. Pelileo", ""], ["Pelileo", "Patate", "Ag. Pelileo", ""], ["Pelileo", "La Moya", "Ag. Pelileo", ""], ["Pelileo", "Huambaló", "Ag. Pelileo", ""], ["Península", "Izamba", "Reparaciones CECON", ""], ["Península", "Quillán", "Reparaciones CECON", "Móvil 30 Rural"], ["Península", "Indoamérica", "Reparaciones CECON", ""], ["Península", "Península", "Reparaciones CECON", ""], ["Pilahuín", "Pilahuín", "Móvil 30 Rural", ""], ["Pilahuín", "Pasa", "Móvil 30 Rural", ""], ["Pilahuín", "Yatzaputzán", "Móvil 30 Rural", ""], ["Pilahuín", "Chibuleo", "Móvil 30 Rural", ""], ["Píllaro", "Píllaro", "Ag. Píllaro", ""], ["Píllaro", "San Miguelito", "Ag. Píllaro", ""], ["Píllaro", "Santa Marianita", "Ag. Píllaro", ""], ["Píllaro", "Marcos Espinel", "Ag. Píllaro", ""], ["Píllaro", "San Andrés", "Ag. Píllaro", ""], ["Puyo 1", "Mera", "DZOP INCIDENCIAS", ""], ["Puyo 1", "Shell", "DZOP INCIDENCIAS", ""], ["Puyo 1", "Central", "DZOP INCIDENCIAS", ""], ["Puyo 1", "Circunvalación", "DZOP INCIDENCIAS", ""], ["Puyo 1", "Capricho", "DZOP INCIDENCIAS", ""], ["Puyo 1", "Tarqui", "DZOP INCIDENCIAS", ""], ["Puyo 2", "Calvario", "DZOP INCIDENCIAS", ""], ["Puyo 2", "Veracruz", "DZOP INCIDENCIAS", ""], ["Puyo 2", "Arajuno", "DZOP INCIDENCIAS", ""], ["Puyo 2", "Eloy Alfaro", "DZOP INCIDENCIAS", ""], ["Puyo 2", "La Merced", "DZOP INCIDENCIAS", ""], ["Quero", "Benítez", "Agencia Quero CECON", "Ag. Pelileo"], ["Quero", "Quero", "Agencia Quero CECON", ""], ["Quero", "Cevallos", "Agencia Quero CECON", ""], ["Quero", "Mocha", "Agencia Quero CECON", ""], ["Quero", "Hualcanga", "Agencia Quero CECON", ""], ["Samanga", "Pisque", "Reparaciones CECON", "Móvil 30 Rural"], ["Samanga", "Paso Lateral", "Reparaciones CECON", ""], ["Samanga", "Macasto", "Reparaciones CECON", "Móvil 30 Rural"], ["Samanga", "Cunchibamba", "Reparaciones CECON", ""], ["Samanga", "PIA 1", "Reparaciones CECON", ""], ["Samanga", "Puerto Arturo", "Reparaciones CECON", "Móvil 30 Rural"], ["Samanga", "Camino Real", "Reparaciones CECON", "Móvil 30 Rural"], ["Samanga", "PIA 2", "Reparaciones CECON", ""], ["Samanga", "Plasticaucho", "Reparaciones CECON", ""], ["Tena", "Amazonas", "DZON ATENCIÓN INCIDENCIAS", ""], ["Tena", "Arosemena Tola", "DZON ATENCIÓN INCIDENCIAS", ""], ["Tena", "Paushiyacu", "DZON ATENCIÓN INCIDENCIAS", ""], ["Tena", "Perimetral", "DZON ATENCIÓN INCIDENCIAS", ""], ["Tena", "Puerto Napo", "DZON ATENCIÓN INCIDENCIAS", ""], ["Tena Norte", "Sumaco", "DZON ATENCIÓN INCIDENCIAS", ""], ["Tena Norte", "Muyuna", "DZON ATENCIÓN INCIDENCIAS", ""], ["Tena Norte", "Archidona", "DZON ATENCIÓN INCIDENCIAS", ""], ["Tena Norte", "Jumandi", "DZON ATENCIÓN INCIDENCIAS", ""], ["Totoras", "Totoras", "Reparaciones CECON", ""], ["Totoras", "Bioalimentar", "Reparaciones CECON", ""], ["Totoras", "Palagua", "Reparaciones CECON", "Móvil 30 Rural"], ["Totoras", "San Francisco", "Reparaciones CECON", ""], ["Totoras", "Picaigua", "Reparaciones CECON", "Móvil 30 Rural"], ["Totoras", "Salasaca", "Reparaciones CECON", "Ag. Pelileo"]]; // [subestación, alimentador, grupo principal, grupo alterno ("a;b")]
+const EXTRA = { "Huambaló": ["PINGUE"] }; // sectores de la Ubicación que pertenecen a un primario
+const MOTIVOS = [
+  ["Sector sin servicio", ["SECTOR SIN SERV", "SECTOR SIN"]],
+  ["Falta de servicio", ["FALTA DE SERV", "FALTA DE S", "FALTA DE"]],
+  ["Usuario sin servicio", ["USUARIO SIN"]],
+  ["Fluctuaciones de voltaje", ["FLUCTUAC"]],
+  ["Voltaje alto", ["VOLTAJE ALTO", "ALTO VOLTAJE"]],
+  ["Voltaje bajo", ["VOLTAJE BAJO", "BAJO VOLTAJE"]],
+  ["Medidor dañado", ["MEDIDOR"]],
+  ["Líneas rotas", ["LINEAS ROTAS", "LINEA ROTA", "CABLE CAIDO"]],
+  ["Poste chocado", ["POSTE"]],
+];
+
+const norm = s => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toUpperCase();
+const squash = s => norm(s).replace(/[^A-Z0-9]/g, "");
+
+function parseOCR(text) {
+  const lines = text.split("\n");
+  const N = norm(text);
+  // Incidencias: INC + 11 dígitos (las pestañas). La activa suele ser la última abierta.
+  // Si una línea tiene varias INC, es la fila de pestañas: se usan solo esas.
+  const incOf = s => [...norm(s).matchAll(/INC\s*((?:[0-9O]\s?){10,11})/g)]
+    .map(m => m[1].replace(/O/g, "0").replace(/\s/g, "")).filter(d => /^\d{10,11}$/.test(d)).map(d => d.slice(-6));
+  const tabLine = lines.find(l => incOf(l).length >= 2);
+  const incs = [...new Set(tabLine ? incOf(tabLine) : incOf(text))];
+  // Fila de la llamada: la línea con fecha y hora del evento
+  const dated = lines.filter(l => /\d{2}\/\d{2}\/\d{4}\s+\d{1,2}:\d{2}/.test(l) && !/WR|ORDEN/.test(norm(l)));
+  const row = dated.find(l => MOTIVOS.some(([, keys]) => keys.some(k => norm(l).includes(k)))) || dated.find(l => /\d{10}/.test(l)) || "";
+  // Teléfonos: 10 dígitos que empiezan con 09; primero el que sigue a TELF
+  const phones = [];
+  const addPhone = raw => { const d = raw.replace(/O/g, "0").replace(/\D/g, ""); if (/^09\d{8}$/.test(d) && !phones.includes(d)) phones.push(d); };
+  for (const m of N.matchAll(/TEL[FE]?\.?\s*:?\s*([0-9O][0-9O \-]{8,14})/g)) addPhone(m[1]);
+  for (const m of N.matchAll(/(?<!\d)(0\s?9(?:[\s\-]?\d){8})(?!\d)/g)) addPhone(m[1]);
+  // Motivo: primero en la fila de la llamada, luego en todo el texto
+  let motivo = "";
+  for (const scope of [norm(row), N]) {
+    for (const [name, keys] of MOTIVOS) if (keys.some(k => scope.includes(k))) { motivo = name; break; }
+    if (motivo) break;
+  }
+  // Primario: nombres o sectores del alimentador en la fila, luego en todo el texto
+  const findPrim = scope => {
+    const sq = squash(scope), words = norm(scope), hits = [];
+    for (const [, name] of ALIM) {
+      const keys = [squash(name), ...(EXTRA[name] || [])].filter(k => k.length >= 4);
+      for (const k of keys) {
+        // Nombres cortos (Pasa, Mera, Shell…) solo como palabra suelta, para no confundirlos dentro de otras palabras
+        const i = k.length >= 6 ? sq.indexOf(k) : words.search(new RegExp(`(^|[^A-Z0-9])${k}([^A-Z0-9]|$)`));
+        if (i >= 0) { hits.push([k.length >= 6 ? i : sq.indexOf(k), name]); break; }
+      }
+    }
+    return hits.sort((a, b) => a[0] - b[0]).map(h => h[1]).filter((v, i, a) => a.indexOf(v) === i);
+  };
+  let prims = findPrim(row);
+  if (!prims.length) prims = findPrim(text);
+  return { incs, motivo, phones, prims, row };
+}
+
+function compose(f) {
+  const parts = [`Incidencia ${f.inc || "______"}`];
+  if (f.mot) parts.push(f.mot.toLowerCase());
+  parts.push(`primario ${f.pri || "______"}`);
+  if (f.tel) parts.push(f.tel);
+  return parts.join(", ");
+}
+
+// ---------- interfaz ----------
+const $ = id => document.getElementById(id);
+const byName = Object.fromEntries(ALIM.map(a => [a[1], a]));
+let photoFile = null, msgEdited = false, grupo = "", worker = null, workerReady = null;
+
+$("motivos").innerHTML = MOTIVOS.map(m => `<option value="${m[0]}">`).join("");
+const subs = [...new Set(ALIM.map(a => a[0]))];
+$("f-pri").innerHTML = `<option value="">Elige el primario…</option>` + subs.map(s =>
+  `<optgroup label="S/E ${s}">` + ALIM.filter(a => a[0] === s).map(a => `<option>${a[1]}</option>`).join("") + `</optgroup>`).join("");
+
+function chips(el, values, current, onPick) {
+  el.innerHTML = "";
+  if (values.length < 2) { el.hidden = true; return; }
+  el.hidden = false;
+  for (const v of values) {
+    const b = document.createElement("button");
+    b.className = "chip"; b.type = "button"; b.textContent = v;
+    b.setAttribute("aria-pressed", String(v === current));
+    b.onclick = () => onPick(v);
+    el.appendChild(b);
+  }
+}
+function setGroup() {
+  const a = byName[$("f-pri").value];
+  const opts = a ? [a[2], ...a[3].split(";").filter(Boolean)] : [];
+  if (!opts.includes(grupo)) grupo = opts[0] || "";
+  $("grp").textContent = grupo || "—";
+  chips($("c-grp"), opts, grupo, g => { grupo = g; setGroup(); });
+}
+function refresh() {
+  const f = { inc: $("f-inc").value.trim(), mot: $("f-mot").value.trim(), pri: $("f-pri").value, tel: $("f-tel").value.trim() };
+  if (!msgEdited) $("f-msg").value = compose(f);
+  $("w-inc").hidden = /^\d{6}$/.test(f.inc); $("w-inc").textContent = "Revisa el número: deben ser 6 dígitos.";
+  $("w-tel").hidden = !f.tel || /^09\d{8}$/.test(f.tel); $("w-tel").textContent = "Revisa el teléfono: 10 dígitos que empiezan con 09.";
+  if (!f.tel) { $("w-tel").hidden = false; $("w-tel").textContent = "No se encontró el teléfono en la foto. Escríbelo si lo ves."; }
+  setGroup();
+}
+for (const id of ["f-inc", "f-mot", "f-tel"]) $(id).addEventListener("input", refresh);
+$("f-pri").addEventListener("change", () => { $("w-pri").hidden = true; refresh(); chips($("c-pri"), [...$("c-pri").querySelectorAll("button")].map(b => b.textContent), $("f-pri").value, pickPri); });
+$("f-msg").addEventListener("input", () => { msgEdited = true; });
+function pickPri(v) { $("f-pri").value = v; $("f-pri").dispatchEvent(new Event("change")); }
+
+function getWorker() {
+  if (!workerReady) {
+    const base = new URL("ocr/", location.href).href;
+    workerReady = Tesseract.createWorker("spa", 1, {
+      workerPath: base + "worker-wrap.js", corePath: base, langPath: base + "lang",
+      workerBlobURL: false, gzip: true,
+      logger: m => { if (m.status === "recognizing text") { $("barfill").style.width = Math.round(40 + 60 * m.progress) + "%"; $("status").textContent = "Leyendo la foto… " + Math.round(m.progress * 100) + "%"; } else if (m.progress != null) { $("barfill").style.width = Math.round(40 * m.progress) + "%"; $("status").textContent = "Cargando el lector (solo la primera vez)…"; } }
+    }).then(w => (worker = w));
+  }
+  return workerReady;
+}
+async function prep(file) {
+  const img = await createImageBitmap(file);
+  const scale = Math.min(1, 2200 / img.width);
+  const c = document.createElement("canvas");
+  c.width = Math.round(img.width * scale); c.height = Math.round(img.height * scale);
+  const g = c.getContext("2d");
+  g.filter = "grayscale(1)";
+  g.drawImage(img, 0, 0, c.width, c.height);
+  return c;
+}
+$("go-inc").onclick = () => { $("home").hidden = true; $("inc").hidden = false; getWorker().catch(() => {}); };
+$("back").onclick = () => { $("inc").hidden = true; $("home").hidden = false; };
+$("again").onclick = () => { $("photo").value = ""; $("photo").click(); };
+$("gallery").addEventListener("change", e => readPhoto(e));
+$("photo").addEventListener("change", e => readPhoto(e));
+async function readPhoto(e) {
+  const file = e.target.files[0]; if (!file) return;
+  photoFile = file; msgEdited = false;
+  $("thumb").src = URL.createObjectURL(file);
+  $("prev").hidden = false; $("result").hidden = true; $("note").hidden = true;
+  $("barfill").style.width = "2%"; $("status").textContent = "Preparando el lector…";
+  try {
+    const [w, canvas] = await Promise.all([getWorker(), prep(file)]);
+    const { data } = await w.recognize(canvas);
+    $("raw").textContent = data.text;
+    const p = parseOCR(data.text);
+    const inc = p.incs.at(-1) || "";
+    $("f-inc").value = inc;
+    const pickInc = v => { $("f-inc").value = v; chips($("c-inc"), p.incs, v, pickInc); refresh(); };
+    chips($("c-inc"), p.incs, inc, pickInc);
+    $("f-mot").value = p.motivo;
+    $("f-pri").value = p.prims[0] || "";
+    chips($("c-pri"), p.prims, p.prims[0], pickPri);
+    $("w-pri").hidden = p.prims.length === 1;
+    $("w-pri").textContent = p.prims.length ? "Hay varias coincidencias: confirma el primario." : "No se pudo deducir el primario: elígelo de la lista.";
+    $("f-tel").value = p.phones[0] || "";
+    const pickTel = v => { $("f-tel").value = v; chips($("c-tel"), p.phones, v, pickTel); refresh(); };
+    chips($("c-tel"), p.phones, p.phones[0], pickTel);
+    grupo = ""; refresh();
+    $("status").textContent = "Listo. Revisa los datos antes de enviar.";
+    $("barfill").style.width = "100%";
+    $("result").hidden = false;
+  } catch (err) {
+    $("status").textContent = "No se pudo leer la foto. Vuelve a intentarlo con una foto más derecha y cercana.";
+  }
+}
+function showNote(t) { $("note").textContent = t; $("note").hidden = false; }
+async function copyText() {
+  try { await navigator.clipboard.writeText($("f-msg").value); return true; }
+  catch { $("f-msg").select(); return false; }
+}
+$("copy").onclick = async () => {
+  const ok = await copyText();
+  showNote(ok ? `Texto copiado. Pégalo en WhatsApp, en el grupo ${grupo || "que corresponda"}, junto con la foto.` : "Mantén presionado el mensaje para copiarlo.");
+};
+$("share").onclick = async () => {
+  const text = $("f-msg").value;
+  const files = photoFile ? [new File([photoFile], "incidencia.jpg", { type: photoFile.type || "image/jpeg" })] : [];
+  try {
+    if (navigator.canShare && navigator.canShare({ files, text })) { await navigator.share({ files, text }); showNote(`Elige el grupo ${grupo} en WhatsApp.`); return; }
+    throw new Error("sin share");
+  } catch (err) {
+    if (err && err.name === "AbortError") return;
+    const ok = await copyText();
+    showNote(ok ? `Este navegador no deja compartir la foto directamente. El texto ya está copiado: abre WhatsApp, entra a ${grupo || "el grupo"}, adjunta la foto y pega.` : "Mantén presionado el mensaje para copiarlo y pégalo en WhatsApp.");
+  }
+};
+</script>
+
+<script>
+if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
+</script>
+</body>
+</html>
