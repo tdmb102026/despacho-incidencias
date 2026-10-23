@@ -78,6 +78,19 @@ textarea{min-height:64px;resize:vertical;font-size:1rem}
 .note{font-size:.9rem;padding:10px 12px;border-radius:8px;background:var(--chip)}
 details{font-size:.85rem;color:var(--muted)}
 details pre{white-space:pre-wrap;word-break:break-word;font-family:var(--mono);font-size:.75rem;max-height:240px;overflow:auto}
+/* Cámara propia: pantalla completa en negro, como la de WhatsApp */
+.cam{position:fixed;inset:0;z-index:10;background:#000;display:flex}
+.cam video{width:100%;height:100%;object-fit:contain}
+.cam-guide{position:absolute;inset:14% 12% 22%;border:2px solid rgba(255,255,255,.75);border-radius:10px;pointer-events:none}
+.cam-focus{position:absolute;width:64px;height:64px;margin:-32px 0 0 -32px;border:2px solid #ffd54a;border-radius:50%;pointer-events:none}
+.cam-hint{position:absolute;top:max(10px,env(safe-area-inset-top,0px));left:12px;right:12px;margin:0;color:#fff;text-align:center;font-size:.9rem;text-shadow:0 1px 3px #000;pointer-events:none}
+.cam-bar{position:absolute;left:0;right:0;bottom:0;display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:12px;padding:14px 16px max(14px,env(safe-area-inset-bottom,0px));background:linear-gradient(transparent,rgba(0,0,0,.65))}
+.cam-x{background:none;color:#fff;font-weight:600;justify-self:start;padding:10px 0}
+.cam-shot{width:72px;height:72px;border-radius:50%;background:#fff;border:6px solid rgba(255,255,255,.35);background-clip:padding-box}
+.cam-shot:active{transform:scale(.94)}
+.cam-zoom{justify-self:end;display:flex;gap:6px}
+.cam-zoom button{background:rgba(255,255,255,.2);color:#fff;padding:8px 10px;border-radius:99px;font-size:.9rem;font-weight:600}
+.cam-zoom button[aria-pressed="true"]{background:#fff;color:#000}
 @media (prefers-reduced-motion:reduce){.bar i{transition:none}}
 </style>
 
@@ -99,9 +112,10 @@ details pre{white-space:pre-wrap;word-break:break-word;font-family:var(--mono);f
     <div class="fields">
       <div class="top"><button class="back" id="back">‹ Inicio</button><button class="back" id="again" hidden>Nueva foto ›</button></div>
       <div class="pick" id="pick">
-        <label class="btn shot"><input type="file" id="photo" accept="image/*" capture="environment">Tomar foto</label>
+        <button class="btn shot" id="cam-open" type="button">Tomar foto</button>
+        <input type="file" id="photo" accept="image/*" capture="environment" hidden>
         <label class="btn shot alt"><input type="file" id="gallery" accept="image/*">Elegir de la galería</label>
-        <p class="tip" style="grid-column:1/-1">Acércate hasta que el panel de la incidencia llene la foto. Si la cámara enfoca mal, toma la foto con la cámara normal del celular y luego usa <b>Elegir de la galería</b>.</p>
+        <p class="tip" style="grid-column:1/-1">Pon el celular horizontal, acércate hasta que el panel de la incidencia llene el recuadro y toca la pantalla para enfocar.</p>
       </div>
       <div class="preview" id="prev" hidden><img id="thumb" alt="Foto de la pantalla"><div style="flex:1;display:grid;gap:6px"><div class="bar"><i id="barfill"></i></div><span class="status" id="status">Preparando el lector…</span></div></div>
 
@@ -145,6 +159,18 @@ details pre{white-space:pre-wrap;word-break:break-word;font-family:var(--mono);f
       </div>
     </div>
   </section>
+</div>
+
+<div class="cam" id="cam" hidden>
+  <video id="cam-v" playsinline muted autoplay></video>
+  <div class="cam-guide"></div>
+  <i class="cam-focus" id="cam-focus" hidden></i>
+  <p class="cam-hint">Celular horizontal · llena el recuadro con el panel · toca para enfocar</p>
+  <div class="cam-bar">
+    <button class="cam-x" id="cam-x" type="button">Cancelar</button>
+    <button class="cam-shot" id="cam-shot" type="button" aria-label="Tomar foto"></button>
+    <div class="cam-zoom" id="cam-zoom"></div>
+  </div>
 </div>
 
 <script src="ocr/tesseract.min.js"></script>
@@ -398,6 +424,7 @@ function yellowRect(src) {
 }
 // Pantallas en el historial del navegador, para que el gesto atrás de Android vuelva dentro de la app
 function show(v) {
+  closeCam(); if (v === "cam") v = "inc";
   $("home").hidden = v !== "home"; $("inc").hidden = v === "home";
   const res = v === "res" && !!$("f-msg").value;
   $("result").hidden = !res; $("again").hidden = !res; $("pick").hidden = res;
@@ -411,8 +438,65 @@ $("back").onclick = () => history.back();
 $("again").onclick = () => history.back();
 $("gallery").addEventListener("change", e => readPhoto(e));
 $("photo").addEventListener("change", e => readPhoto(e));
+
+// ---------- cámara propia ----------
+// La cámara que Android les da a las apps enfoca mal en el Motorola; esta usa la cámara directo,
+// con enfoque continuo, tocar para enfocar y foto a resolución completa.
+let stream = null, track = null;
+function closeCam() {
+  if (stream) stream.getTracks().forEach(t => t.stop());
+  stream = track = null; $("cam").hidden = true; $("cam-v").srcObject = null;
+}
+$("cam-open").onclick = async () => {
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: { ideal: "environment" }, width: { ideal: 3840 }, height: { ideal: 2160 } } });
+  } catch { $("photo").click(); return; }
+  track = stream.getVideoTracks()[0];
+  const caps = track.getCapabilities ? track.getCapabilities() : {};
+  if ((caps.focusMode || []).includes("continuous")) track.applyConstraints({ advanced: [{ focusMode: "continuous" }] }).catch(() => {});
+  const zb = $("cam-zoom"); zb.innerHTML = "";
+  if (caps.zoom) {
+    const levels = [1, 1.5, 2].filter(z => z >= caps.zoom.min && z <= caps.zoom.max);
+    if (levels.length > 1) for (const z of levels) {
+      const b = document.createElement("button");
+      b.type = "button"; b.textContent = z + "×"; b.setAttribute("aria-pressed", String(z === 1));
+      b.onclick = () => { track.applyConstraints({ advanced: [{ zoom: z }] }).catch(() => {}); zb.querySelectorAll("button").forEach(x => x.setAttribute("aria-pressed", String(x === b))); };
+      zb.appendChild(b);
+    }
+  }
+  $("cam-v").srcObject = stream; $("cam").hidden = false;
+  history.pushState({ v: "cam" }, "");
+};
+$("cam-v").onclick = e => {
+  if (!track) return;
+  const r = e.currentTarget.getBoundingClientRect(), f = $("cam-focus");
+  f.style.left = e.clientX + "px"; f.style.top = e.clientY + "px"; f.hidden = false;
+  setTimeout(() => { f.hidden = true; }, 900);
+  const x = (e.clientX - r.left) / r.width, y = (e.clientY - r.top) / r.height;
+  track.applyConstraints({ advanced: [{ pointsOfInterest: [{ x, y }], focusMode: "single-shot" }] })
+    .then(() => setTimeout(() => track && track.applyConstraints({ advanced: [{ focusMode: "continuous" }] }).catch(() => {}), 2500))
+    .catch(() => {});
+};
+$("cam-x").onclick = () => history.back();
+$("cam-shot").onclick = async () => {
+  if (!track) return;
+  $("cam-shot").disabled = true;
+  let blob = null;
+  try { if ("ImageCapture" in window) blob = await new ImageCapture(track).takePhoto(); } catch {}
+  if (!blob) {
+    const v = $("cam-v"), c = document.createElement("canvas");
+    c.width = v.videoWidth; c.height = v.videoHeight; c.getContext("2d").drawImage(v, 0, 0);
+    blob = await new Promise(r => c.toBlob(r, "image/jpeg", 0.92));
+  }
+  $("cam-shot").disabled = false;
+  await new Promise(r => { addEventListener("popstate", r, { once: true }); history.back(); });
+  if (blob) processFile(new File([blob], "incidencia.jpg", { type: blob.type || "image/jpeg" }));
+};
+
 async function readPhoto(e) {
-  const file = e.target.files[0]; e.target.value = ""; if (!file) return;
+  const file = e.target.files[0]; e.target.value = ""; if (file) processFile(file);
+}
+async function processFile(file) {
   photoFile = file; msgEdited = false;
   $("thumb").src = URL.createObjectURL(file);
   $("prev").hidden = false; $("result").hidden = true; $("note").hidden = true;
