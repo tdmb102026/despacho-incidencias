@@ -63,6 +63,10 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
 .chip{padding:8px 12px;background:var(--chip);color:var(--ink);font-size:.95rem}
 .chip[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink)}
 .flag{font-size:.85rem;color:var(--warn)}
+.sugs{display:grid;border:1px solid var(--line);border-radius:8px;background:var(--surface);overflow:hidden}
+.sugs button{display:flex;justify-content:space-between;gap:12px;background:none;color:var(--ink);text-align:left;padding:11px 12px;border-radius:0;border-top:1px solid var(--line)}
+.sugs button:first-child{border-top:0}
+.sugs small{color:var(--muted)}
 .group{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 14px;border-radius:10px;background:var(--surface);border:2px solid var(--wa)}
 .group b{font-size:1.1rem}
 .msg{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px;display:grid;gap:10px}
@@ -127,7 +131,8 @@ details pre{white-space:pre-wrap;word-break:break-word;font-family:var(--mono);f
         <div class="field">
           <label for="f-pri">Primario</label>
           <div class="chips" id="c-pri"></div>
-          <select id="f-pri"></select>
+          <input id="f-pri" autocomplete="off" autocapitalize="words" placeholder="Escribe el primario…">
+          <div class="sugs" id="s-pri" hidden></div>
           <span class="flag" id="w-pri" hidden></span>
         </div>
         <div class="field">
@@ -161,7 +166,15 @@ const MOTIVOS = [
 const norm = s => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toUpperCase();
 const squash = s => norm(s).replace(/[^A-Z0-9]/g, "");
 
-function parseOCR(text) {
+// Teléfono del comentario: viene como cel:, telf, celular… o solo el número; siempre 10 dígitos que empiezan con 0
+function phonesIn(t) {
+  const N = norm(t), out = [];
+  const add = raw => { const d = raw.replace(/[OQ]/g, "0").replace(/\D/g, ""); if (/^0\d{9}$/.test(d) && !out.includes(d)) out.push(d); };
+  for (const m of N.matchAll(/(?:CEL|TEL|MOVIL|CONTACTO)[A-Z]*\.?\s*:?\s*([0-9OQ](?:[\s\-]?[0-9OQ]){9})(?![0-9])/g)) add(m[1]);
+  for (const m of N.matchAll(/(?<![\d,.\-])(0\s?9(?:[\s\-]?[0-9O]){8})(?![\d,])/g)) add(m[1]);
+  return out.sort((a, b) => b.startsWith("09") - a.startsWith("09"));
+}
+function parseOCR(text, box = "") {
   const lines = text.split("\n");
   const N = norm(text);
   // Incidencias: INC + 11 dígitos (las pestañas). La activa suele ser la última abierta.
@@ -178,7 +191,7 @@ function parseOCR(text) {
   const dated = lines.filter(l => /\d{2}\/\d{2}\/\d{4}\s+\d{1,2}:\d{2}/.test(l) && !/WR|ORDEN/.test(norm(l)));
   const row = dated.find(l => MOTIVOS.some(([, keys]) => keys.some(k => norm(l).includes(k)))) || dated.find(l => /\d{10}/.test(l)) || "";
   // Teléfonos: 10 dígitos que empiezan con 09; primero el que sigue a TELF
-  const phones = [];
+  const phones = phonesIn(box);
   const addPhone = raw => { const d = raw.replace(/O/g, "0").replace(/\D/g, ""); if (/^09\d{8}$/.test(d) && !phones.includes(d)) phones.push(d); };
   for (const m of N.matchAll(/TEL[FE]?\.?\s*:?\s*([0-9O][0-9O \-]{8,14})/g)) addPhone(m[1]);
   for (const m of N.matchAll(/(?<!\d)(0\s?9(?:[\s\-]?\d){8})(?!\d)/g)) addPhone(m[1]);
@@ -202,6 +215,7 @@ function parseOCR(text) {
     return hits.sort((a, b) => a[0] - b[0]).map(h => h[1]).filter((v, i, a) => a.indexOf(v) === i);
   };
   let prims = findPrim(row);
+  if (!prims.length) prims = findPrim(box);
   if (!prims.length) prims = findPrim(text);
   return { incs, incGuess, motivo, phones, prims, row };
 }
@@ -220,9 +234,23 @@ const byName = Object.fromEntries(ALIM.map(a => [a[1], a]));
 let photoFile = null, msgEdited = false, grupo = "", worker = null, workerReady = null;
 
 $("motivos").innerHTML = MOTIVOS.map(m => `<option value="${m[0]}">`).join("");
-const subs = [...new Set(ALIM.map(a => a[0]))];
-$("f-pri").innerHTML = `<option value="">Elige el primario…</option>` + subs.map(s =>
-  `<optgroup label="S/E ${s}">` + ALIM.filter(a => a[0] === s).map(a => `<option>${a[1]}</option>`).join("") + `</optgroup>`).join("");
+const PRIS = ALIM.map(a => ({ name: a[1], sub: a[0], k: squash(a[1]), ks: squash(a[0]) }));
+const priName = v => (PRIS.find(x => x.k === squash(v)) || {}).name || "";
+function suggest() {
+  const q = squash($("f-pri").value), box = $("s-pri");
+  const list = q && !priName($("f-pri").value) ? PRIS.filter(x => x.k.includes(q) || x.ks.includes(q))
+    .sort((a, b) => b.k.startsWith(q) - a.k.startsWith(q)).slice(0, 8) : [];
+  box.innerHTML = "";
+  for (const x of list) {
+    const b = document.createElement("button");
+    b.type = "button"; b.innerHTML = `<span></span><small></small>`;
+    b.firstChild.textContent = x.name; b.lastChild.textContent = "S/E " + x.sub;
+    b.onmousedown = e => e.preventDefault();
+    b.onclick = () => pickPri(x.name);
+    box.appendChild(b);
+  }
+  box.hidden = !list.length;
+}
 
 function chips(el, values, current, onPick) {
   el.innerHTML = "";
@@ -237,14 +265,14 @@ function chips(el, values, current, onPick) {
   }
 }
 function setGroup() {
-  const a = byName[$("f-pri").value];
+  const a = byName[priName($("f-pri").value)];
   const opts = a ? [a[2], ...a[3].split(";").filter(Boolean)] : [];
   if (!opts.includes(grupo)) grupo = opts[0] || "";
   $("grp").textContent = grupo || "—";
   chips($("c-grp"), opts, grupo, g => { grupo = g; setGroup(); });
 }
 function refresh() {
-  const f = { inc: $("f-inc").value.trim(), mot: $("f-mot").value.trim(), pri: $("f-pri").value, tel: $("f-tel").value.trim() };
+  const f = { inc: $("f-inc").value.trim(), mot: $("f-mot").value.trim(), pri: priName($("f-pri").value) || $("f-pri").value.trim(), tel: $("f-tel").value.trim() };
   if (!msgEdited) $("f-msg").value = compose(f);
   $("w-inc").hidden = /^\d{6}$/.test(f.inc); $("w-inc").textContent = "Revisa el número: deben ser 6 dígitos.";
   $("w-tel").hidden = !f.tel || /^09\d{8}$/.test(f.tel); $("w-tel").textContent = "Revisa el teléfono: 10 dígitos que empiezan con 09.";
@@ -252,9 +280,11 @@ function refresh() {
   setGroup();
 }
 for (const id of ["f-inc", "f-mot", "f-tel"]) $(id).addEventListener("input", refresh);
-$("f-pri").addEventListener("change", () => { $("w-pri").hidden = true; refresh(); chips($("c-pri"), [...$("c-pri").querySelectorAll("button")].map(b => b.textContent), $("f-pri").value, pickPri); });
+$("f-pri").addEventListener("input", () => { $("w-pri").hidden = true; suggest(); refresh(); });
+$("f-pri").addEventListener("blur", () => { $("s-pri").hidden = true; });
+$("f-pri").addEventListener("change", () => { $("w-pri").hidden = true; refresh(); chips($("c-pri"), [...$("c-pri").querySelectorAll("button")].map(b => b.textContent), priName($("f-pri").value), pickPri); });
 $("f-msg").addEventListener("input", () => { msgEdited = true; });
-function pickPri(v) { $("f-pri").value = v; $("f-pri").dispatchEvent(new Event("change")); }
+function pickPri(v) { $("f-pri").value = v; $("s-pri").hidden = true; $("f-pri").dispatchEvent(new Event("change")); }
 
 function getWorker() {
   if (!workerReady) {
@@ -268,18 +298,23 @@ function getWorker() {
   return workerReady;
 }
 // La pantalla del ADMS es ancha: la foto se toma horizontal. Si llega vertical o de cabeza, se gira.
-async function prep(file, rot) {
+async function orient(file, rot) {
   const img = await createImageBitmap(file);
   const side = rot % 180 !== 0;
-  const w = side ? img.height : img.width, h = side ? img.width : img.height;
-  const scale = Math.min(1, 2200 / w);
   const c = document.createElement("canvas");
-  c.width = Math.round(w * scale); c.height = Math.round(h * scale);
+  c.width = side ? img.height : img.width; c.height = side ? img.width : img.height;
+  const g = c.getContext("2d");
+  g.translate(c.width / 2, c.height / 2); g.rotate(rot * Math.PI / 180);
+  g.drawImage(img, -img.width / 2, -img.height / 2);
+  return c;
+}
+// Recorte en gris de la foto, escalado al ancho pedido
+function crop(src, x, y, w, h, outW = w) {
+  const c = document.createElement("canvas");
+  c.width = Math.round(outW); c.height = Math.round(h * outW / w);
   const g = c.getContext("2d");
   g.filter = "grayscale(1)";
-  const dw = side ? c.height : c.width, dh = side ? c.width : c.height;
-  g.translate(c.width / 2, c.height / 2); g.rotate(rot * Math.PI / 180);
-  g.drawImage(img, -dw / 2, -dh / 2, dw, dh);
+  g.drawImage(src, x, y, w, h, 0, 0, c.width, c.height);
   return c;
 }
 async function readBest(w, file) {
@@ -287,19 +322,86 @@ async function readBest(w, file) {
   const tries = img.height > img.width ? [90, 270] : [0, 180];
   let best;
   for (const rot of tries) {
-    const { data } = await w.recognize(await prep(file, rot));
+    const src = await orient(file, rot);
+    const small = crop(src, 0, 0, src.width, src.height, Math.min(2200, src.width));
+    const { data } = await w.recognize(small);
     const p = parseOCR(data.text);
-    if (!best || p.incs.length > best.p.incs.length) best = { text: data.text, p };
+    if (!best || p.incs.length > best.p.incs.length) best = { text: data.text, p, data, src, small };
     if (p.incs.length) break;
   }
   return best;
+}
+// Pestañas INC: se recorta solo la fila de pestañas de la foto original y se lee como bloque de texto.
+// La pestaña activa es la de fondo más claro.
+async function readTabs(w, src, small, data, firstIncs) {
+  const lines = data.lines || [];
+  const asg = lines.find(l => /ASIGNADO/.test(norm(l.text)));
+  const cands = lines.filter(l => /INC/.test(norm(l.text)) && (!asg || l.bbox.y1 <= asg.bbox.y1));
+  let line = asg ? cands.filter(l => l.bbox.y0 > asg.bbox.y0 - 6 * (asg.bbox.y1 - asg.bbox.y0)).at(-1) : null;
+  line = line || lines.find(l => (norm(l.text).match(/INC/g) || []).length >= 2);
+  const k = src.width / small.width, bands = [];
+  if (line) { const lh = line.bbox.y1 - line.bbox.y0; bands.push([line.bbox.y0 - 0.35 * lh, line.bbox.y1 + 0.35 * lh]); }
+  if (asg) { const lh = asg.bbox.y1 - asg.bbox.y0; bands.push([asg.bbox.y0 - 2.3 * lh, asg.bbox.y0 - 0.1 * lh]); }
+  // Cada franja se lee a tres tamaños; todas las lecturas se juntan
+  const reads = []; // { inc, x0, x1, b }
+  await w.setParameters({ tessedit_pageseg_mode: "6" });
+  try {
+    for (let [y0, y1] of bands) {
+      y0 = Math.max(0, y0 * k); y1 = Math.min(src.height, y1 * k);
+      if (y1 - y0 < 10) continue;
+      const gray = crop(src, 0, y0, src.width, y1 - y0, 1600);
+      const px = gray.getContext("2d").getImageData(0, 0, gray.width, gray.height).data;
+      const bright = (f0, f1) => {
+        const v = [], x0 = Math.round(f0 * gray.width), x1 = Math.round(f1 * gray.width);
+        for (let y = 0; y < gray.height; y++) for (let x = Math.max(0, x0); x < Math.min(gray.width, x1); x += 2) v.push(px[(y * gray.width + x) * 4]);
+        v.sort((a, b) => a - b); return v[v.length >> 1] || 0;
+      };
+      for (const W of [1600, 2000, 2400]) {
+        const strip = W === 1600 ? gray : crop(src, 0, y0, src.width, y1 - y0, W);
+        const { data: d } = await w.recognize(strip);
+        for (const wd of d.words || []) {
+          const digits = wd.text.replace(/O/g, "0").replace(/\D/g, "");
+          if (digits.length < 10 || digits.length > 11 || !digits.startsWith("110")) continue; // todas las INC empiezan con 110
+          const x0 = wd.bbox.x0 / W, x1 = wd.bbox.x1 / W;
+          reads.push({ inc: digits.slice(-6), x0, x1, b: bright(x0, x1) });
+        }
+      }
+    }
+  } finally { await w.setParameters({ tessedit_pageseg_mode: "3" }); }
+  // Cada pestaña es un grupo de lecturas en la misma posición; gana el número que más se repite
+  const groups = [];
+  for (const r of reads.sort((a, b) => a.x0 - b.x0)) {
+    const g = groups.find(g => Math.abs(g.x0 - r.x0) < 0.04);
+    if (g) g.reads.push(r); else groups.push({ x0: r.x0, x1: r.x1, reads: [r] });
+  }
+  return groups.map(g => {
+    const count = inc => g.reads.filter(r => r.inc === inc).length + (firstIncs.includes(inc) ? 1 : 0);
+    const inc = g.reads.map(r => r.inc).sort((a, b) => count(b) - count(a))[0];
+    const bs = g.reads.map(r => r.b).sort((a, b) => a - b);
+    return { inc, x: g.x0, b: bs[bs.length >> 1] };
+  }).filter((t, i, all) => all.findIndex(u => u.inc === t.inc) === i);
+}
+// Cuadro amarillo del comentario: se ubica por el color y se lee aparte
+function yellowRect(src) {
+  const W = 600, s = W / src.width, H = Math.round(src.height * s);
+  const c = document.createElement("canvas"); c.width = W; c.height = H;
+  const g = c.getContext("2d"); g.drawImage(src, 0, 0, W, H);
+  const d = g.getImageData(0, 0, W, H).data, rows = new Array(H).fill(0), cols = new Array(W).fill(0);
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    const i = (y * W + x) * 4, r = d[i], gg = d[i + 1], b = d[i + 2];
+    if (r > 140 && gg > 140 && Math.min(r, gg) - b > 12) { rows[y]++; cols[x]++; }
+  }
+  const ys = rows.flatMap((v, i) => v > 40 ? [i] : []), xs = cols.flatMap((v, i) => v > 40 ? [i] : []);
+  if (ys.length < 15 || xs.length < 15) return null;
+  const x0 = Math.max(0, xs[0] - 4), y0 = Math.max(0, ys[0] - 4), x1 = Math.min(W, xs.at(-1) + 5), y1 = Math.min(H, ys.at(-1) + 5);
+  return { x: x0 / s, y: y0 / s, w: (x1 - x0) / s, h: (y1 - y0) / s };
 }
 // Pantallas en el historial del navegador, para que el gesto atrás de Android vuelva dentro de la app
 function show(v) {
   $("home").hidden = v !== "home"; $("inc").hidden = v === "home";
   const res = v === "res" && !!$("f-msg").value;
   $("result").hidden = !res; $("again").hidden = !res; $("pick").hidden = res;
-  if (!res) $("prev").hidden = true;
+  $("prev").hidden = true;
   window.scrollTo(0, 0);
 }
 history.replaceState({ v: "home" }, "");
@@ -317,17 +419,32 @@ async function readPhoto(e) {
   $("barfill").style.width = "2%"; $("status").textContent = "Preparando el lector…";
   try {
     const w = await getWorker();
-    const { text, p } = await readBest(w, file);
-    $("raw").textContent = text;
-    const inc = p.incs.at(-1) || "";
+    const { text, p: p0, data, src, small } = await readBest(w, file);
+    $("status").textContent = "Leyendo el comentario y las pestañas…";
+    const r = yellowRect(src);
+    // El comentario se lee a dos tamaños; el teléfono que coincide en más lecturas va primero
+    const boxTexts = [];
+    if (r) for (const W of [r.w, Math.max(1600, r.w * 1.6)]) boxTexts.push((await w.recognize(crop(src, r.x, r.y, r.w, r.h, W))).data.text);
+    const boxText = boxTexts.join("\n");
+    const tabs = await readTabs(w, src, small, data, p0.incs);
+    const p = parseOCR(text, boxText);
+    const votes = t => [...boxTexts.map(phonesIn), p0.phones].filter(l => l.includes(t)).length;
+    p.phones = [...new Set([...p.phones, ...p0.phones])].sort((a, b) => votes(b) - votes(a));
+    let inc = p.incs.at(-1) || "";
+    if (tabs.length) {
+      p.incs = tabs.map(t => t.inc); p.incGuess = false;
+      const byB = [...tabs].sort((a, b) => b.b - a.b);
+      inc = byB.length > 1 && byB[0].b - byB[1].b >= 3 ? byB[0].inc : tabs.at(-1).inc;
+    }
+    $("raw").textContent = text + (boxText ? "\n--- Comentario ---\n" + boxText : "") + (tabs.length ? "\n--- Pestañas ---\n" + tabs.map(t => `${t.inc} (${t.b})`).join("  ") : "");
     $("f-inc").value = inc;
     const pickInc = v => { $("f-inc").value = v; chips($("c-inc"), p.incs, v, pickInc); refresh(); };
     chips($("c-inc"), p.incs, inc, pickInc);
     $("f-mot").value = p.motivo;
-    $("f-pri").value = p.prims[0] || "";
+    $("f-pri").value = p.prims[0] || ""; $("s-pri").hidden = true;
     chips($("c-pri"), p.prims, p.prims[0], pickPri);
     $("w-pri").hidden = p.prims.length === 1;
-    $("w-pri").textContent = p.prims.length ? "Hay varias coincidencias: confirma el primario." : "No se pudo deducir el primario: elígelo de la lista.";
+    $("w-pri").textContent = p.prims.length ? "Hay varias coincidencias: confirma el primario." : "No se pudo deducir el primario: escríbelo y elige de las sugerencias.";
     $("f-tel").value = p.phones[0] || "";
     const pickTel = v => { $("f-tel").value = v; chips($("c-tel"), p.phones, v, pickTel); refresh(); };
     chips($("c-tel"), p.phones, p.phones[0], pickTel);
