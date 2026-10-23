@@ -1,5 +1,5 @@
 // Guarda la app y el lector en el celular para que abra rápido y sin señal.
-const CACHE = "despacho-v9";
+const CACHE = "despacho-v10";
 const FILES = ["./", "index.html", "manifest.webmanifest", "icons/icon-192.png", "icons/icon-512.png",
   "ocr/tesseract.min.js", "ocr/worker.min.js", "ocr/worker-wrap.js",
   "ocr/tesseract-core-simd-lstm.wasm.js", "ocr/tesseract-core-lstm.wasm.js", "ocr/lang/spa.traineddata.gz.wasm"];
