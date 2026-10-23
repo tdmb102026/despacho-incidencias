@@ -97,6 +97,7 @@ details pre{white-space:pre-wrap;word-break:break-word;font-family:var(--mono);f
       <div class="pick" id="pick">
         <label class="btn shot"><input type="file" id="photo" accept="image/*" capture="environment">Tomar foto</label>
         <label class="btn shot alt"><input type="file" id="gallery" accept="image/*">Elegir de la galería</label>
+        <p class="tip" style="grid-column:1/-1">Acércate hasta que el panel de la incidencia llene la foto. Si la cámara enfoca mal, toma la foto con la cámara normal del celular y luego usa <b>Elegir de la galería</b>.</p>
       </div>
       <div class="preview" id="prev" hidden><img id="thumb" alt="Foto de la pantalla"><div style="flex:1;display:grid;gap:6px"><div class="bar"><i id="barfill"></i></div><span class="status" id="status">Preparando el lector…</span></div></div>
 
@@ -168,7 +169,11 @@ function parseOCR(text) {
   const incOf = s => [...norm(s).matchAll(/INC\s*((?:[0-9O]\s?){10,11})/g)]
     .map(m => m[1].replace(/O/g, "0").replace(/\s/g, "")).filter(d => /^\d{10,11}$/.test(d)).map(d => d.slice(-6));
   const tabLine = lines.find(l => incOf(l).length >= 2);
-  const incs = [...new Set(tabLine ? incOf(tabLine) : incOf(text))];
+  let incs = [...new Set(tabLine ? incOf(tabLine) : incOf(text))];
+  // Foto borrosa: el lector a veces se come un dígito. Se ofrece igual, para que la persona lo confirme.
+  const incGuess = !incs.length;
+  if (incGuess) incs = [...new Set([...N.matchAll(/INC\s*((?:[0-9O]\s?){8,9})(?![0-9O])/g)]
+    .map(m => m[1].replace(/O/g, "0").replace(/\s/g, "").slice(-6)))];
   // Fila de la llamada: la línea con fecha y hora del evento
   const dated = lines.filter(l => /\d{2}\/\d{2}\/\d{4}\s+\d{1,2}:\d{2}/.test(l) && !/WR|ORDEN/.test(norm(l)));
   const row = dated.find(l => MOTIVOS.some(([, keys]) => keys.some(k => norm(l).includes(k)))) || dated.find(l => /\d{10}/.test(l)) || "";
@@ -198,7 +203,7 @@ function parseOCR(text) {
   };
   let prims = findPrim(row);
   if (!prims.length) prims = findPrim(text);
-  return { incs, motivo, phones, prims, row };
+  return { incs, incGuess, motivo, phones, prims, row };
 }
 
 function compose(f) {
@@ -327,6 +332,7 @@ async function readPhoto(e) {
     const pickTel = v => { $("f-tel").value = v; chips($("c-tel"), p.phones, v, pickTel); refresh(); };
     chips($("c-tel"), p.phones, p.phones[0], pickTel);
     grupo = ""; refresh();
+    if (p.incGuess && inc) { $("w-inc").hidden = false; $("w-inc").textContent = "Lectura dudosa: compara el número con la pantalla."; }
     $("status").textContent = "Listo. Revisa los datos antes de enviar.";
     $("barfill").style.width = "100%";
     if (history.state && history.state.v === "res") show("res");
