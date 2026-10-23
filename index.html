@@ -106,6 +106,7 @@ details pre{white-space:pre-wrap;word-break:break-word;font-family:var(--mono);f
 .view{position:fixed;inset:0;z-index:10;background:#000;overflow:auto;display:flex;align-items:center;justify-content:center}
 .view img{max-width:100%;max-height:100%;touch-action:pinch-zoom}
 .view .cam-x{position:fixed;top:max(12px,env(safe-area-inset-top,0px));right:14px;background:rgba(0,0,0,.55);color:#fff;font-weight:600;padding:8px 14px;border-radius:99px}
+.view .view-dl{right:auto;left:14px;text-decoration:none}
 @media (prefers-reduced-motion:reduce){.bar i{transition:none}}
 </style>
 
@@ -177,7 +178,7 @@ details pre{white-space:pre-wrap;word-break:break-word;font-family:var(--mono);f
   </section>
 </div>
 
-<div class="view" id="view" hidden><img id="view-img" alt="Foto de la incidencia"><button class="cam-x" id="view-x" type="button">Cerrar</button></div>
+<div class="view" id="view" hidden><img id="view-img" alt="Foto de la incidencia"><button class="cam-x" id="view-x" type="button">Cerrar</button><a class="cam-x view-dl" id="view-dl" download="incidencia.jpg">Guardar foto</a></div>
 
 <div class="cam" id="cam" hidden>
   <video id="cam-v" playsinline muted autoplay></video>
@@ -246,10 +247,11 @@ function parseOCR(text, box = "") {
     if (motivo) break;
   }
   // Primario: nombres o sectores del alimentador en la fila, luego en todo el texto
-  const findPrim = scope => {
+  // Nombres cortos solo se aceptan en la fila de la llamada: en el comentario suelen ser calles (Juan León Mera)
+  const findPrim = (scope, short = true) => {
     const sq = squash(scope), words = norm(scope), hits = [];
     for (const [, name] of ALIM) {
-      const keys = [squash(name), ...(EXTRA[name] || [])].filter(k => k.length >= 4);
+      const keys = [squash(name), ...(EXTRA[name] || [])].filter(k => k.length >= (short ? 4 : 6));
       for (const k of keys) {
         // Nombres cortos (Pasa, Mera, Shell…) solo como palabra suelta, para no confundirlos dentro de otras palabras
         const i = k.length >= 6 ? sq.indexOf(k) : words.search(new RegExp(`(^|[^A-Z0-9])${k}([^A-Z0-9]|$)`));
@@ -259,8 +261,8 @@ function parseOCR(text, box = "") {
     return hits.sort((a, b) => a[0] - b[0]).map(h => h[1]).filter((v, i, a) => a.indexOf(v) === i);
   };
   let prims = findPrim(row);
-  if (!prims.length) prims = findPrim(box);
-  if (!prims.length) prims = findPrim(text);
+  if (!prims.length) prims = findPrim(box, false);
+  if (!prims.length) prims = findPrim(text, false);
   return { incs, incGuess, motivo, phones, prims, row };
 }
 
@@ -400,14 +402,32 @@ async function readBest(w, w2, file) {
 // Pestañas INC: se recorta solo la fila de pestañas de la foto original y se lee como bloque de texto.
 // La pestaña activa es la de fondo más claro.
 async function readTabs(ws, src, small, data, firstIncs) {
-  const lines = data.lines || [];
+  let lines = data.lines || [];
+  // Si la lectura general no encontró "Asignado a" ni la fila de pestañas, se relee en modo de texto disperso
+  if (!lines.some(l => /ASIGNADO/.test(norm(l.text)))) {
+    await ws[0].setParameters({ tessedit_pageseg_mode: "11" });
+    try { lines = lines.concat((await ws[0].recognize(small)).data.lines || []); }
+    finally { await ws[0].setParameters({ tessedit_pageseg_mode: "3" }); }
+  }
   const asg = lines.find(l => /ASIGNADO/.test(norm(l.text)));
-  const cands = lines.filter(l => /INC/.test(norm(l.text)) && (!asg || l.bbox.y1 <= asg.bbox.y1));
+  const cands = lines.filter(l => /(^|[^A-Z])INC\s*[0-9O]/.test(norm(l.text)) && (!asg || l.bbox.y1 <= asg.bbox.y1));
   let line = asg ? cands.filter(l => l.bbox.y0 > asg.bbox.y0 - 6 * (asg.bbox.y1 - asg.bbox.y0)).at(-1) : null;
   line = line || lines.find(l => (norm(l.text).match(/INC/g) || []).length >= 2);
   const k = src.width / small.width, bands = [];
-  if (line) { const lh = line.bbox.y1 - line.bbox.y0; bands.push([line.bbox.y0 - 0.35 * lh, line.bbox.y1 + 0.35 * lh]); }
-  if (asg) { const lh = asg.bbox.y1 - asg.bbox.y0; bands.push([asg.bbox.y0 - 2.3 * lh, asg.bbox.y0 - 0.1 * lh]); }
+  // Alto de letra: mediana de las palabras de la línea (la caja de la línea a veces junta dos renglones)
+  const textH = l => {
+    const hs = (l.words || []).filter(w => /[A-Z0-9]/i.test(w.text)).map(w => w.bbox.y1 - w.bbox.y0).sort((a, b) => a - b);
+    return hs.length ? hs[hs.length >> 1] : l.bbox.y1 - l.bbox.y0;
+  };
+  if (line) {
+    const lh = textH(line), ws = (line.words || []).filter(w => /^[0-9O]{8,}$/.test(w.text.replace(/\W/g, "")));
+    const yc = ws.length ? ws.reduce((a, w) => a + (w.bbox.y0 + w.bbox.y1) / 2, 0) / ws.length : (line.bbox.y0 + line.bbox.y1) / 2;
+    bands.push([yc - 1.1 * lh, yc + 1.1 * lh]);
+  }
+  if (asg) {
+    const lh = textH(asg), aw = (asg.words || []).find(w => /ASIGNADO/.test(norm(w.text))), top = aw ? aw.bbox.y0 : asg.bbox.y0;
+    bands.push([top - 2.6 * lh, top - 0.2 * lh]);
+  }
   // Cada franja se lee a tres tamaños; todas las lecturas se juntan
   const reads = []; // { inc, x0, x1, b }
   const jobs = [];
@@ -600,7 +620,7 @@ async function processFile(file) {
       const blob = await new Promise(r => src.toBlob(r, "image/jpeg", 0.9));
       if (blob) { photoFile = new File([blob], "incidencia.jpg", { type: "image/jpeg" }); $("thumb").src = URL.createObjectURL(photoFile); }
     }
-    $("shot-img").src = $("view-img").src = $("thumb").src;
+    $("shot-img").src = $("view-img").src = $("view-dl").href = $("thumb").src;
     $("status").textContent = "Leyendo el comentario y las pestañas…";
     // El comentario se leyó a dos tamaños; el teléfono que coincide en más lecturas va primero
     const boxText = boxTexts.join("\n");
