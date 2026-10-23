@@ -262,15 +262,32 @@ function getWorker() {
   }
   return workerReady;
 }
-async function prep(file) {
+// La pantalla del ADMS es ancha: la foto se toma horizontal. Si llega vertical o de cabeza, se gira.
+async function prep(file, rot) {
   const img = await createImageBitmap(file);
-  const scale = Math.min(1, 2200 / img.width);
+  const side = rot % 180 !== 0;
+  const w = side ? img.height : img.width, h = side ? img.width : img.height;
+  const scale = Math.min(1, 2200 / w);
   const c = document.createElement("canvas");
-  c.width = Math.round(img.width * scale); c.height = Math.round(img.height * scale);
+  c.width = Math.round(w * scale); c.height = Math.round(h * scale);
   const g = c.getContext("2d");
   g.filter = "grayscale(1)";
-  g.drawImage(img, 0, 0, c.width, c.height);
+  const dw = side ? c.height : c.width, dh = side ? c.width : c.height;
+  g.translate(c.width / 2, c.height / 2); g.rotate(rot * Math.PI / 180);
+  g.drawImage(img, -dw / 2, -dh / 2, dw, dh);
   return c;
+}
+async function readBest(w, file) {
+  const img = await createImageBitmap(file);
+  const tries = img.height > img.width ? [90, 270] : [0, 180];
+  let best;
+  for (const rot of tries) {
+    const { data } = await w.recognize(await prep(file, rot));
+    const p = parseOCR(data.text);
+    if (!best || p.incs.length > best.p.incs.length) best = { text: data.text, p };
+    if (p.incs.length) break;
+  }
+  return best;
 }
 // Pantallas en el historial del navegador, para que el gesto atrás de Android vuelva dentro de la app
 function show(v) {
@@ -294,10 +311,9 @@ async function readPhoto(e) {
   $("prev").hidden = false; $("result").hidden = true; $("note").hidden = true;
   $("barfill").style.width = "2%"; $("status").textContent = "Preparando el lector…";
   try {
-    const [w, canvas] = await Promise.all([getWorker(), prep(file)]);
-    const { data } = await w.recognize(canvas);
-    $("raw").textContent = data.text;
-    const p = parseOCR(data.text);
+    const w = await getWorker();
+    const { text, p } = await readBest(w, file);
+    $("raw").textContent = text;
     const inc = p.incs.at(-1) || "";
     $("f-inc").value = inc;
     const pickInc = v => { $("f-inc").value = v; chips($("c-inc"), p.incs, v, pickInc); refresh(); };
