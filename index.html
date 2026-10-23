@@ -78,19 +78,33 @@ textarea{min-height:64px;resize:vertical;font-size:1rem}
 .note{font-size:.9rem;padding:10px 12px;border-radius:8px;background:var(--chip)}
 details{font-size:.85rem;color:var(--muted)}
 details pre{white-space:pre-wrap;word-break:break-word;font-family:var(--mono);font-size:.75rem;max-height:240px;overflow:auto}
-/* Cámara propia: pantalla completa en negro, como la de WhatsApp */
-.cam{position:fixed;inset:0;z-index:10;background:#000;display:flex}
-.cam video{width:100%;height:100%;object-fit:contain}
-.cam-guide{position:absolute;inset:14% 12% 22%;border:2px solid rgba(255,255,255,.75);border-radius:10px;pointer-events:none}
-.cam-focus{position:absolute;width:64px;height:64px;margin:-32px 0 0 -32px;border:2px solid #ffd54a;border-radius:50%;pointer-events:none}
-.cam-hint{position:absolute;top:max(10px,env(safe-area-inset-top,0px));left:12px;right:12px;margin:0;color:#fff;text-align:center;font-size:.9rem;text-shadow:0 1px 3px #000;pointer-events:none}
-.cam-bar{position:absolute;left:0;right:0;bottom:0;display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:12px;padding:14px 16px max(14px,env(safe-area-inset-bottom,0px));background:linear-gradient(transparent,rgba(0,0,0,.65))}
-.cam-x{background:none;color:#fff;font-weight:600;justify-self:start;padding:10px 0}
-.cam-shot{width:72px;height:72px;border-radius:50%;background:#fff;border:6px solid rgba(255,255,255,.35);background-clip:padding-box}
-.cam-shot:active{transform:scale(.94)}
-.cam-zoom{justify-self:end;display:flex;gap:6px}
-.cam-zoom button{background:rgba(255,255,255,.2);color:#fff;padding:8px 10px;border-radius:99px;font-size:.9rem;font-weight:600}
-.cam-zoom button[aria-pressed="true"]{background:#fff;color:#000}
+/* Cámara propia a pantalla completa, como la de WhatsApp: disparador abajo, o a la derecha con el celular horizontal */
+.cam{position:fixed;inset:0;z-index:10;background:#000}
+.cam video{width:100%;height:100%;object-fit:cover;display:block}
+.cam-focus{position:absolute;width:64px;height:64px;margin:-32px 0 0 -32px;border:2px solid #fff;border-radius:50%;pointer-events:none}
+.cam-round{position:absolute;width:44px;height:44px;border-radius:50%;background:rgba(0,0,0,.45);color:#fff;font-size:1.1rem;display:grid;place-items:center;padding:0}
+.cam-close{top:max(14px,env(safe-area-inset-top,0px));left:14px}
+.cam-torch{top:max(14px,env(safe-area-inset-top,0px));right:14px}
+.cam-torch[aria-pressed="true"]{background:#fff;color:#000}
+.cam-bar{position:absolute;left:0;right:0;bottom:0;display:flex;flex-direction:column;align-items:center;gap:14px;padding:12px 16px max(22px,env(safe-area-inset-bottom,0px))}
+.cam-shot{width:76px;height:76px;border-radius:50%;background:transparent;border:5px solid #fff;padding:0;position:relative}
+.cam-shot::after{content:"";position:absolute;inset:5px;border-radius:50%;background:#fff}
+.cam-shot:active::after{inset:9px}
+.cam-zoom{display:flex;gap:8px}
+.cam-zoom button{background:rgba(0,0,0,.45);color:#fff;width:40px;height:40px;border-radius:50%;font-size:.8rem;font-weight:600;padding:0}
+.cam-zoom button[aria-pressed="true"]{color:#ffd54a}
+@media (orientation:landscape){
+  .cam-bar{left:auto;top:0;bottom:0;right:0;flex-direction:row;padding:16px max(22px,env(safe-area-inset-right,0px)) 16px 12px}
+  .cam-zoom{flex-direction:column}
+  .cam-torch{right:auto;left:14px;top:auto;bottom:14px}
+}
+/* Foto en el resultado y visor a pantalla completa */
+.shot-view{position:relative;display:block;width:100%;height:120px;padding:0;border-radius:8px;overflow:hidden;background:var(--chip)}
+.shot-view img{width:100%;height:100%;object-fit:cover;display:block}
+.shot-view span{position:absolute;right:8px;bottom:8px;background:rgba(0,0,0,.6);color:#fff;font-size:.8rem;font-weight:600;padding:4px 8px;border-radius:99px}
+.view{position:fixed;inset:0;z-index:10;background:#000;overflow:auto;display:flex;align-items:center;justify-content:center}
+.view img{max-width:100%;max-height:100%;touch-action:pinch-zoom}
+.view .cam-x{position:fixed;top:max(12px,env(safe-area-inset-top,0px));right:14px;background:rgba(0,0,0,.55);color:#fff;font-weight:600;padding:8px 14px;border-radius:99px}
 @media (prefers-reduced-motion:reduce){.bar i{transition:none}}
 </style>
 
@@ -121,6 +135,7 @@ details pre{white-space:pre-wrap;word-break:break-word;font-family:var(--mono);f
 
       <div id="result" class="fields" hidden>
         <div class="msg">
+          <button class="shot-view" id="shot-view" type="button" aria-label="Ver la foto en grande"><img id="shot-img" alt="Foto de la incidencia"><span>Ver foto</span></button>
           <div class="group"><span>Enviar a</span><b id="grp">—</b></div>
           <div class="chips" id="c-grp"></div>
           <textarea id="f-msg" aria-label="Mensaje"></textarea>
@@ -161,15 +176,16 @@ details pre{white-space:pre-wrap;word-break:break-word;font-family:var(--mono);f
   </section>
 </div>
 
+<div class="view" id="view" hidden><img id="view-img" alt="Foto de la incidencia"><button class="cam-x" id="view-x" type="button">Cerrar</button></div>
+
 <div class="cam" id="cam" hidden>
   <video id="cam-v" playsinline muted autoplay></video>
-  <div class="cam-guide"></div>
   <i class="cam-focus" id="cam-focus" hidden></i>
-  <p class="cam-hint">Celular horizontal · llena el recuadro con el panel · toca para enfocar</p>
+  <button class="cam-round cam-close" id="cam-x" type="button" aria-label="Cerrar cámara">✕</button>
+  <button class="cam-round cam-torch" id="cam-torch" type="button" aria-label="Linterna" aria-pressed="false" hidden>⚡</button>
   <div class="cam-bar">
-    <button class="cam-x" id="cam-x" type="button">Cancelar</button>
-    <button class="cam-shot" id="cam-shot" type="button" aria-label="Tomar foto"></button>
     <div class="cam-zoom" id="cam-zoom"></div>
+    <button class="cam-shot" id="cam-shot" type="button" aria-label="Tomar foto"></button>
   </div>
 </div>
 
@@ -352,7 +368,7 @@ async function readBest(w, file) {
     const small = crop(src, 0, 0, src.width, src.height, Math.min(2200, src.width));
     const { data } = await w.recognize(small);
     const p = parseOCR(data.text);
-    if (!best || p.incs.length > best.p.incs.length) best = { text: data.text, p, data, src, small };
+    if (!best || p.incs.length > best.p.incs.length) best = { text: data.text, p, data, src, small, rot };
     if (p.incs.length) break;
   }
   return best;
@@ -424,7 +440,8 @@ function yellowRect(src) {
 }
 // Pantallas en el historial del navegador, para que el gesto atrás de Android vuelva dentro de la app
 function show(v) {
-  closeCam(); if (v === "cam") v = "inc";
+  closeCam(); $("view").hidden = true;
+  if (v === "cam") v = "inc"; if (v === "view") v = "res";
   $("home").hidden = v !== "home"; $("inc").hidden = v === "home";
   const res = v === "res" && !!$("f-msg").value;
   $("result").hidden = !res; $("again").hidden = !res; $("pick").hidden = res;
@@ -454,12 +471,13 @@ $("cam-open").onclick = async () => {
   track = stream.getVideoTracks()[0];
   const caps = track.getCapabilities ? track.getCapabilities() : {};
   if ((caps.focusMode || []).includes("continuous")) track.applyConstraints({ advanced: [{ focusMode: "continuous" }] }).catch(() => {});
+  $("cam-torch").hidden = !caps.torch; $("cam-torch").setAttribute("aria-pressed", "false");
   const zb = $("cam-zoom"); zb.innerHTML = "";
   if (caps.zoom) {
     const levels = [1, 1.5, 2].filter(z => z >= caps.zoom.min && z <= caps.zoom.max);
     if (levels.length > 1) for (const z of levels) {
       const b = document.createElement("button");
-      b.type = "button"; b.textContent = z + "×"; b.setAttribute("aria-pressed", String(z === 1));
+      b.type = "button"; b.textContent = (z === 1.5 ? "1.5" : z) + "×"; b.setAttribute("aria-pressed", String(z === 1));
       b.onclick = () => { track.applyConstraints({ advanced: [{ zoom: z }] }).catch(() => {}); zb.querySelectorAll("button").forEach(x => x.setAttribute("aria-pressed", String(x === b))); };
       zb.appendChild(b);
     }
@@ -478,6 +496,12 @@ $("cam-v").onclick = e => {
     .catch(() => {});
 };
 $("cam-x").onclick = () => history.back();
+$("view-x").onclick = () => history.back();
+$("shot-view").onclick = () => { $("view").hidden = false; history.pushState({ v: "view" }, ""); };
+$("cam-torch").onclick = () => {
+  const on = $("cam-torch").getAttribute("aria-pressed") !== "true";
+  track.applyConstraints({ advanced: [{ torch: on }] }).then(() => $("cam-torch").setAttribute("aria-pressed", String(on))).catch(() => {});
+};
 $("cam-shot").onclick = async () => {
   if (!track) return;
   $("cam-shot").disabled = true;
@@ -503,7 +527,13 @@ async function processFile(file) {
   $("barfill").style.width = "2%"; $("status").textContent = "Preparando el lector…";
   try {
     const w = await getWorker();
-    const { text, p: p0, data, src, small } = await readBest(w, file);
+    const { text, p: p0, data, src, small, rot } = await readBest(w, file);
+    // La foto que se comparte va derecha (horizontal), igual que se leyó
+    if (rot) {
+      const blob = await new Promise(r => src.toBlob(r, "image/jpeg", 0.9));
+      if (blob) { photoFile = new File([blob], "incidencia.jpg", { type: "image/jpeg" }); $("thumb").src = URL.createObjectURL(photoFile); }
+    }
+    $("shot-img").src = $("view-img").src = $("thumb").src;
     $("status").textContent = "Leyendo el comentario y las pestañas…";
     const r = yellowRect(src);
     // El comentario se lee a dos tamaños; el teléfono que coincide en más lecturas va primero
