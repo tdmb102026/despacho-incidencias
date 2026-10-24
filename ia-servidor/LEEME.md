@@ -14,7 +14,7 @@ Claude (Anthropic) con **tu** clave de API. La clave nunca llega a los celulares
    **Cualquier persona**. Implementar, autorizar con tu cuenta y copiar el enlace que termina en `/exec`.
 5. Vuelve a la hoja y recárgala: aparece el menú **Despacho IA**. Usa **Guardar clave de Anthropic** y pega la clave.
    Luego **Preparar hoja de contraseñas**: se crea la pestaña «Claves».
-6. Pásale el enlace `/exec` a Claude para dejarlo fijo en la app (mientras tanto, se pega en la pantalla de la contraseña).
+6. El enlace `/exec` queda fijo en `ia.js` (`IA_URL`). Si cambias el script, usa **Implementar → Gestionar implementaciones → editar → Nueva versión**, así el enlace no cambia.
 
 ## Contraseñas
 

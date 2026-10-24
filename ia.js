@@ -4,8 +4,8 @@
 // El Motorola del CECON lo usan todos los turnos: la contraseña vale solo un turno (8 horas) o hasta tocar «Salir»,
 // así cada foto se cuenta al operador que la tomó.
 
-// Enlace /exec del servidor. Mientras esté vacío, se puede pegar en la pantalla de la contraseña.
-const IA_URL = "";
+// Enlace /exec del servidor de fer. Si se vacía, se puede pegar en la pantalla de la contraseña.
+const IA_URL = "https://script.google.com/macros/s/AKfycbw4zZF5oOZ4Gd0l33tUGuSLAzXfVqkFf-ljV6wMYeIGc9j9nv7WUzb2urt80IlFp6GCJQ/exec";
 let modoIA = false;
 const iaGet = k => { try { return localStorage.getItem(k) || ""; } catch { return ""; } };
 const iaPut = (k, v) => { try { v ? localStorage.setItem(k, v) : localStorage.removeItem(k); } catch {} };
