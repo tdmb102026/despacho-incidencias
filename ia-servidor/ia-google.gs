@@ -5,7 +5,8 @@
 // Se pega en Extensiones → Apps Script de una hoja nueva y se implementa como "Aplicación web"
 // (ejecutar como: yo; acceso: cualquier persona). Los pasos están en ia-servidor/LEEME.md.
 
-const MODELO = "claude-opus-5-5";
+// Haiku: el más barato (unos 0,1 centavos de dólar por foto). Si lee mal, se puede cambiar a "claude-sonnet-5-5" (~1 centavo).
+const MODELO = "claude-haiku-5-5";
 const HOJA = "Claves";
 const TITULOS = ["Contraseña", "Operador", "Activa (SI/NO)", "Fotos leídas", "Último uso"];
 
@@ -97,24 +98,21 @@ nombres: todos los nombres de equipos que se leen en la pantalla.` };
 }
 
 // Llamada a la API de Claude (Apps Script no tiene SDK de Anthropic: va por HTTP).
-// Esfuerzo bajo: Apps Script corta las llamadas que tardan más de un minuto, y leer la pantalla no necesita pensar mucho.
+// Esfuerzo medio: con Haiku sigue siendo rápido (Apps Script corta las llamadas de más de un minuto).
 function claude_(p, imagen) {
   const key = PropertiesService.getScriptProperties().getProperty("ANTHROPIC_API_KEY");
   if (!key) return { ok: false, error: "sin-clave-api" };
   const cuerpo = {
     model: MODELO, max_tokens: 16000,
-    output_config: { effort: "low", format: { type: "json_schema", schema: p.esquema } },
+    output_config: { effort: "medium", format: { type: "json_schema", schema: p.esquema } },
     system: p.sistema,
     messages: [{ role: "user", content: [{ type: "image", source: { type: "base64", media_type: "image/jpeg", data: imagen } }, { type: "text", text: p.texto }] }],
   };
-  const llamar = (extra, beta) => UrlFetchApp.fetch("https://api.anthropic.com/v1/messages", {
+  const r = UrlFetchApp.fetch("https://api.anthropic.com/v1/messages", {
     method: "post", contentType: "application/json", muteHttpExceptions: true,
-    headers: Object.assign({ "x-api-key": key, "anthropic-version": "2026-10-21" }, beta ? { "anthropic-beta": beta } : {}),
-    payload: JSON.stringify(Object.assign({}, cuerpo, extra)),
+    headers: { "x-api-key": key, "anthropic-version": "2026-10-21" },
+    payload: JSON.stringify(cuerpo),
   });
-  // Si el modelo se niega por error, la API reintenta sola con otro modelo; si no acepta ese parámetro, va sin él
-  let r = llamar({ fallbacks: "default" }, "server-side-fallback-2026-07-01");
-  if (r.getResponseCode() === 400) r = llamar({}, "");
   const code = r.getResponseCode(), j = JSON.parse(r.getContentText() || "{}");
   if (code === 401 || code === 403) return { ok: false, error: "clave-api" };
   if (code === 429 || /credit|balance/i.test(((j.error || {}).message) || "")) return { ok: false, error: "saldo" };

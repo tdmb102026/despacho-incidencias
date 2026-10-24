@@ -154,7 +154,7 @@ details pre{white-space:pre-wrap;word-break:break-word;font-family:var(--mono);f
       <div class="field">
         <label for="ia-pass">Contraseña de la IA</label>
         <input id="ia-pass" type="password" autocomplete="current-password">
-        <span class="tip">Pídela a fer. Queda guardada en este celular.</span>
+        <span class="tip">Pídela a fer. Vale para tu turno (8 horas); al terminar toca «Salir».</span>
       </div>
       <div class="field" id="ia-url-f">
         <label for="ia-url">Enlace del servidor de la IA (termina en /exec)</label>
@@ -167,6 +167,7 @@ details pre{white-space:pre-wrap;word-break:break-word;font-family:var(--mono);f
 
   <section id="home" class="home" hidden>
     <div class="top"><button class="back" id="go-modo">‹ Cambiar modo</button><span class="eyebrow" id="modo-lbl">Sin IA</span></div>
+    <button class="danger" id="ia-salir" type="button" hidden style="justify-self:end;padding:0">Salir (fin de turno)</button>
     <button class="big primary" id="go-inc"><strong>Incidencias</strong><span>Foto de Gestión de incidencias → mensaje para WhatsApp</span></button>
     <button class="big" id="go-fal"><strong>Fallas internas</strong><span>Fotos del SCADA → fila para la Bitácora</span></button>
     <p class="tip" id="home-tip">Toma la foto de cerca, con la fila de la llamada y el recuadro del Comentario visibles.</p>

@@ -1,6 +1,8 @@
 // ---------- Modo «Con IA» ----------
 // Las fotos van al servidor de fer (Apps Script de Google, ia-servidor/ia-google.gs), que revisa la contraseña
-// del operador y se las pasa a Claude (Anthropic). La clave de API queda en el servidor; el celular solo guarda la contraseña.
+// del operador y se las pasa a Claude (Anthropic). La clave de API queda en el servidor.
+// El Motorola del CECON lo usan todos los turnos: la contraseña vale solo un turno (8 horas) o hasta tocar «Salir»,
+// así cada foto se cuenta al operador que la tomó.
 
 // Enlace /exec del servidor. Mientras esté vacío, se puede pegar en la pantalla de la contraseña.
 const IA_URL = "";
@@ -8,6 +10,12 @@ let modoIA = false;
 const iaGet = k => { try { return localStorage.getItem(k) || ""; } catch { return ""; } };
 const iaPut = (k, v) => { try { v ? localStorage.setItem(k, v) : localStorage.removeItem(k); } catch {} };
 const iaUrl = () => IA_URL || iaGet("ia-servidor");
+const TURNO = 8 * 3600e3;
+// Contraseña del turno en curso ("" si ya pasó el turno o se tocó Salir)
+function iaClave() {
+  if (Date.now() > +iaGet("ia-hasta")) { iaPut("ia-clave", ""); iaPut("ia-nombre", ""); }
+  return iaGet("ia-clave");
+}
 
 // La foto se reduce a lo que el modelo usa (2576 px el lado largo, ~3.7 MP), así sube rápido y cuesta menos
 async function iaImage(file) {
@@ -31,7 +39,7 @@ function iaRotate(src, deg) {
 
 const iaErr = msg => Object.assign(new Error(msg), { ia: true });
 const IA_ERRORES = {
-  "contraseña": "Tu contraseña de la IA ya no vale. Pide una nueva a fer, o usa el modo Sin IA.",
+  "contraseña": "Tu contraseña de la IA ya no vale (o terminó tu turno). Vuelve al inicio y entra de nuevo, o usa el modo Sin IA.",
   "saldo": "La IA está ocupada o se acabó el saldo. Espera un momento o usa el modo Sin IA.",
   "clave-api": "El servidor de la IA no tiene una clave de Anthropic válida. Avisa a fer.",
   "sin-clave-api": "El servidor de la IA todavía no tiene la clave de Anthropic. Avisa a fer.",
@@ -46,14 +54,14 @@ async function iaPost(body) {
   try { j = await (await fetch(url, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify(body) })).json(); }
   catch { throw iaErr("No se pudo conectar con la IA (¿sin señal?). Vuelve a intentarlo."); }
   if (!j.ok) {
-    if (j.error === "contraseña") iaPut("ia-clave", "");
+    if (j.error === "contraseña") iaPut("ia-hasta", "");
     throw iaErr(IA_ERRORES[j.error] || "La IA dio un error. Vuelve a intentarlo.");
   }
   return j;
 }
 async function iaRead(file, tipo, listas) {
   const { data, canvas } = await iaImage(file);
-  const j = await iaPost({ clave: iaGet("ia-clave"), tipo, imagen: data, listas });
+  const j = await iaPost({ clave: iaClave(), tipo, imagen: data, listas });
   return { out: j.datos || {}, canvas };
 }
 
@@ -148,15 +156,18 @@ function readSlotIA(f, n, file) {
 // ---------- pantallas: elegir modo y contraseña ----------
 function setModo(ia) {
   modoIA = ia;
-  $("modo-lbl").textContent = ia ? "Con IA" : "Sin IA";
+  $("modo-lbl").textContent = ia ? "Con IA · " + (iaGet("ia-nombre") || "operador") : "Sin IA";
+  $("ia-salir").hidden = !ia;
   $("home-tip").textContent = ia ? "Las fotos las lee la IA (necesita internet)." : "Toma la foto de cerca, con la fila de la llamada y el recuadro del Comentario visibles.";
 }
 $("go-sin").onclick = () => { setModo(false); history.pushState({ v: "home" }, ""); show("home"); };
 $("go-con").onclick = () => {
-  if (iaGet("ia-clave") && iaUrl()) { setModo(true); history.pushState({ v: "home" }, ""); show("home"); return; }
+  if (iaClave() && iaUrl()) { setModo(true); history.pushState({ v: "home" }, ""); show("home"); return; }
   history.pushState({ v: "clave" }, ""); show("clave");
 };
 $("go-modo").onclick = () => history.back();
+// Al terminar el turno: el siguiente operador entra con su propia contraseña
+$("ia-salir").onclick = () => { iaPut("ia-hasta", ""); iaClave(); history.back(); };
 $("ia-url-f").hidden = !!IA_URL;
 $("ia-url").value = iaGet("ia-servidor");
 $("ia-entrar").onclick = async () => {
@@ -168,8 +179,8 @@ $("ia-entrar").onclick = async () => {
   if (!clave) return;
   $("ia-entrar").disabled = true; $("ia-note").textContent = "Revisando la contraseña…"; $("ia-note").hidden = false;
   try {
-    await iaPost({ clave, tipo: "probar" });
-    iaPut("ia-clave", clave); $("ia-pass").value = ""; $("ia-note").hidden = true;
+    const j = await iaPost({ clave, tipo: "probar" });
+    iaPut("ia-clave", clave); iaPut("ia-nombre", j.operador || ""); iaPut("ia-hasta", String(Date.now() + TURNO)); $("ia-pass").value = ""; $("ia-note").hidden = true;
     setModo(true); history.replaceState({ v: "home" }, ""); show("home");
   } catch (e) {
     $("ia-note").textContent = e.ia ? (e.message.startsWith("Tu contraseña") ? "Esa contraseña no vale. Revísala o pídela a fer." : e.message) : "No se pudo revisar la contraseña.";

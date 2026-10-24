@@ -7,7 +7,7 @@ Claude (Anthropic) con **tu** clave de API. La clave nunca llega a los celulares
 ## Preparar el servidor (una sola vez)
 
 1. Crea la clave de API en https://console.anthropic.com → **API Keys** → *Create Key*. Carga saldo en **Billing**
-   (cada foto cuesta unos 2 a 3 centavos de dólar).
+   (con el modelo Haiku cada foto cuesta unos 0,1 centavos de dólar: unos 10 dólares cada 10.000 fotos).
 2. Crea una hoja de cálculo nueva en Google Drive, por ejemplo «Despacho IA - contraseñas».
 3. Menú **Extensiones → Apps Script**. Borra lo que haya, pega todo `ia-google.gs` y guarda.
 4. **Implementar → Nueva implementación → tipo: Aplicación web**. Ejecutar como: **Yo**. Quién tiene acceso:
@@ -28,3 +28,10 @@ En la pestaña «Claves», una fila por operador:
 - Para dar acceso a alguien: agrega una fila con una contraseña nueva y dásela.
 - Para quitarlo (por ejemplo si no pagó): pon **NO** en «Activa» o borra la fila. Su app vuelve a pedir contraseña.
 - «Fotos leídas» suma sola cada foto que la IA leyó con esa contraseña: sirve para saber cuánto cobrar.
+- El Motorola lo usan todos los turnos: la contraseña vale 8 horas o hasta tocar **Salir (fin de turno)**, y la app
+  muestra arriba quién está usando la IA. Así las fotos se cuentan al operador del turno.
+
+## Modelo
+
+`MODELO` al inicio del script. Por defecto `claude-haiku-5-5` (el más barato). Si lee mal las fotos, cambiarlo a
+`claude-sonnet-5-5` (~1 centavo por foto) y volver a implementar.
