@@ -399,14 +399,27 @@ $("fx-send").onclick = async () => {
   }
   remember(f);
   note("Enviando…");
-  const body = JSON.stringify({ fila: rowOf(f) });
   try {
-    try { await fetch(url, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body }); }
-    catch { await fetch(url, { method: "POST", mode: "no-cors", headers: { "Content-Type": "text/plain;charset=utf-8" }, body }); }
+    if (!(await saveRow(url, rowOf(f)))) throw new Error("no llegó");
     f.enviada = new Date().toISOString(); saveAll();
-    note("Enviada. En la PC abre «Nueva falla interna» y aplasta LLENAR BITACORA." + (f.estado === "ABIERTO" ? " Cuando se reconecte, abre esta falla, marca «Reconectado» y envíala otra vez." : ""));
-  } catch { note("No se pudo enviar (¿sin señal?). La falla queda guardada; vuelve a tocar «Enviar a la hoja»."); }
+    note("Enviada y comprobada en la hoja. En la PC abre «Nueva falla interna» y aplasta LLENAR BITACORA." + (f.estado === "ABIERTO" ? " Cuando se reconecte, abre esta falla, marca «Reconectado» y envíala otra vez." : ""));
+  } catch (e) {
+    f.enviada = false; saveAll();
+    note(e.message === "no llegó"
+      ? "La hoja respondió pero la fila no aparece. Revisa que el script de la hoja sea el último (hoja-google.txt) e implementa una versión nueva. Mientras, usa «Copiar fila»."
+      : "No se pudo enviar (¿sin señal o enlace equivocado?). La falla queda guardada; vuelve a tocar «Enviar a la hoja».");
+  }
 };
+// Guarda la fila y comprueba que quedó: primero por GET (?fila=…); si el script es el anterior,
+// por POST, y luego se confirma que el ID aparece entre las pendientes
+async function saveRow(url, row) {
+  const get = async q => (await fetch(url + q)).json();
+  const j = await get("?fila=" + encodeURIComponent(JSON.stringify(row)));
+  if (j && j.guardada) return true;
+  await fetch(url, { method: "POST", mode: "no-cors", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify({ fila: row }) }).catch(() => {});
+  const l = await get("");
+  return (l.filas || []).some(r => r[19] === row[19]);
+}
 $("fx-copy").onclick = async () => {
   remember(cur);
   const t = rowOf(cur).join("\t");

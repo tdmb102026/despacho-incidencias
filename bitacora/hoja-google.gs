@@ -24,25 +24,27 @@ function filaDe_(h, id) {
   return i < 0 ? 0 : i + 2;
 }
 
-// El celular manda {fila:[…20 columnas…]}. Si la falla ya estaba (mismo ID) se actualiza
+// El celular manda la fila (20 columnas). Si la falla ya estaba (mismo ID) se actualiza
 // y vuelve a quedar pendiente, por ejemplo cuando después se reconecta.
-function doPost(e) {
+function doPost(e) { return json_(guardar_(JSON.parse(e.postData.contents).fila)); }
+function guardar_(filaIn) {
   const lock = LockService.getScriptLock(); lock.waitLock(10000);
   try {
-    const d = JSON.parse(e.postData.contents);
-    const fila = (d.fila || []).slice(0, N).map(v => v == null ? "" : String(v));
+    const fila = (filaIn || []).slice(0, N).map(v => v == null ? "" : String(v));
     while (fila.length < N) fila.push("");
     fila[0] = "";
     const h = hoja_(), n = filaDe_(h, fila[COL_ID - 1]) || h.getLastRow() + 1;
     // Todo como texto: si no, Google cambia las fechas y el número de incidencia
     h.getRange(n, 1, 1, N).setNumberFormat("@").setValues([fila]);
-    return json_({ ok: true, fila: n });
+    return { ok: true, guardada: n };
   } finally { lock.releaseLock(); }
 }
 
 // El marcador pide las fallas pendientes (columna Subido vacía), y después marca la que llenó.
 function doGet(e) {
   const h = hoja_(), p = (e && e.parameter) || {};
+  // El celular guarda por aquí (?fila=[…]): es lo que mejor funciona desde el navegador
+  if (p.fila) return json_(guardar_(JSON.parse(p.fila)));
   if (p.marcar) {
     const n = filaDe_(h, p.marcar);
     if (n) h.getRange(n, 1).setValue("x");
