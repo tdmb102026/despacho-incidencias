@@ -1,6 +1,6 @@
 // Guarda la app y el lector en el celular para que abra rápido y sin señal.
-const CACHE = "despacho-v14";
-const FILES = ["./", "index.html", "manifest.webmanifest", "icons/icon-192.png", "icons/icon-512.png",
+const CACHE = "despacho-v15";
+const FILES = ["./", "index.html", "manifest.webmanifest", "fallas.js", "datos/fallas.js", "icons/icon-192.png", "icons/icon-512.png",
   "ocr/tesseract.min.js", "ocr/worker.min.js", "ocr/worker-wrap.js",
   "ocr/tesseract-core-simd-lstm.wasm.js", "ocr/tesseract-core-lstm.wasm.js", "ocr/lang/spa.traineddata.gz.wasm"];
 self.addEventListener("install", e => e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES)).then(() => self.skipWaiting())));
