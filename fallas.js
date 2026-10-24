@@ -186,14 +186,16 @@ function applySlot(f, n, r, text) {
     f.read[n] = r.score ? `INC ${f.inc || "?"} · ${f.clientes || "?"} clientes` : "No encontré la INC ni los clientes.";
   } else if (n === 1) {
     f.hist = r;
-    if (r.open && (!f.des || stamp(r.open).n < stamp(f.des).n)) f.des = r.open;
+    // La apertura tiene que ser antes del último cierre; si no, se espera la hora de la foto de disparos
+    const before = r.open && (!r.close || stamp(r.open).n < stamp(r.close).n);
+    if (before && (!f.des || stamp(r.open).n < stamp(f.des).n)) f.des = r.open;
     if (r.score) { f.estado = r.closed ? "CERRADO" : "ABIERTO"; f.con = r.close; }
     // Equipo ya conocido por su código del SCADA
     const known = r.point && store.get("codigos", {})[r.point];
     if (known && !f.eq) f.eq = eqFind(known[0], known[1]);
     f.read[n] = r.score ? (r.closed ? `Último cierre ${r.close.slice(11)}` : "Sin cierre: queda abierto") + (r.tag ? ` · ${r.tag}` : "") : "No encontré eventos de apertura o cierre.";
   } else if (n === 2) {
-    if (r.open) f.des = r.open;
+    if (r.open && !(f.con && stamp(r.open).n >= stamp(f.con).n)) f.des = r.open;
     if (r.fases) f.fases = r.fases;
     f.read[n] = r.score ? `Disparo ${r.open.slice(11)}${r.fases ? " · fase " + r.fases : ""}` : "No encontré disparos.";
   } else {
@@ -252,7 +254,7 @@ function showFal(v) {
 }
 $("go-fal").onclick = () => { history.pushState({ v: "fal" }, ""); show("fal"); getWorker().catch(() => {}); };
 $("fal-url").value = store.get("hoja", "");
-$("fal-url").addEventListener("change", () => store.set("hoja", $("fal-url").value.trim()));
+$("fal-url").addEventListener("input", () => store.set("hoja", $("fal-url").value.trim()));
 $("fal-new").onclick = () => {
   const now = new Date();
   cur = { id: "F" + now.getTime().toString(36).toUpperCase(), creada: now.toISOString(), estado: "ABIERTO" };
@@ -381,13 +383,20 @@ function problems(f) {
   if (!f.eq) p.push("el equipo");
   if (!stamp(f.des || "")) p.push("la hora de desconexión");
   if (f.estado === "CERRADO" && !stamp(f.con || "")) p.push("la hora de conexión");
+  else if (f.estado === "CERRADO" && stamp(f.des || "") && stamp(f.des).n >= stamp(f.con).n) p.push("la desconexión (debe ser antes del cierre)");
   return p;
 }
 $("fx-send").onclick = async () => {
-  const f = cur, url = store.get("hoja", "");
+  const f = cur;
+  let url = store.get("hoja", "");
   const p = problems(f);
   if (p.length) return note("Falta o está mal: " + p.join(", ") + ".");
-  if (!/^https:\/\/script\.google/.test(url)) return note("Primero pega el enlace de la hoja en Fallas internas → «Conexión con la hoja de Google». Mientras, usa «Copiar fila».");
+  // Sin enlace guardado, se pide aquí mismo (queda guardado para las próximas)
+  if (!/^https:\/\/script\.google/.test(url)) {
+    url = (prompt("Pega el enlace de la hoja de Google (termina en /exec):") || "").trim();
+    if (!/^https:\/\/script\.google/.test(url)) return note("Ese enlace no es el de la hoja: debe empezar con https://script.google.com. Mientras, usa «Copiar fila».");
+    store.set("hoja", url); $("fal-url").value = url;
+  }
   remember(f);
   note("Enviando…");
   const body = JSON.stringify({ fila: rowOf(f) });
