@@ -139,13 +139,38 @@ details pre{white-space:pre-wrap;word-break:break-word;font-family:var(--mono);f
 <div class="wrap">
   <header>
     <h1>Despacho de Incidencias</h1>
-    <span class="eyebrow">EEASA · CECON · v29</span>
+    <span class="eyebrow">EEASA · CECON · v30</span>
   </header>
 
-  <section id="home" class="home">
+  <!-- Al abrir: con IA (más precisa, con contraseña) o sin IA (el lector del celular, como siempre) -->
+  <section id="modo" class="home">
+    <button class="big primary" id="go-con"><strong>Con IA</strong><span>Lectura más precisa con inteligencia artificial · necesita internet y contraseña</span></button>
+    <button class="big" id="go-sin"><strong>Sin IA</strong><span>El lector del celular, como siempre · gratis y sin internet</span></button>
+  </section>
+
+  <section id="clave" hidden>
+    <div class="fields">
+      <div class="top"><button class="back" data-back>‹ Inicio</button></div>
+      <div class="field">
+        <label for="ia-pass">Contraseña de la IA</label>
+        <input id="ia-pass" type="password" autocomplete="current-password">
+        <span class="tip">Pídela a fer. Vale para tu turno (8 horas); al terminar toca «Salir».</span>
+      </div>
+      <div class="field" id="ia-url-f">
+        <label for="ia-url">Enlace del servidor de la IA (termina en /exec)</label>
+        <input id="ia-url" class="mono" autocomplete="off" placeholder="https://script.google.com/macros/s/…/exec">
+      </div>
+      <button class="btn shot" id="ia-entrar" type="button">Entrar</button>
+      <div class="note" id="ia-note" hidden></div>
+    </div>
+  </section>
+
+  <section id="home" class="home" hidden>
+    <div class="top"><button class="back" id="go-modo">‹ Cambiar modo</button><span class="eyebrow" id="modo-lbl">Sin IA</span></div>
+    <button class="danger" id="ia-salir" type="button" hidden style="justify-self:end;padding:0">Salir (fin de turno)</button>
     <button class="big primary" id="go-inc"><strong>Incidencias</strong><span>Foto de Gestión de incidencias → mensaje para WhatsApp</span></button>
     <button class="big" id="go-fal"><strong>Fallas internas</strong><span>Fotos del SCADA → fila para la Bitácora</span></button>
-    <p class="tip">Toma la foto de cerca, con la fila de la llamada y el recuadro del Comentario visibles.</p>
+    <p class="tip" id="home-tip">Toma la foto de cerca, con la fila de la llamada y el recuadro del Comentario visibles.</p>
   </section>
 
   <section id="inc" hidden>
@@ -271,7 +296,7 @@ details pre{white-space:pre-wrap;word-break:break-word;font-family:var(--mono);f
 </div>
 
 <script src="ocr/tesseract.min.js"></script>
-<script src="datos/fallas.js?v=29"></script>
+<script src="datos/fallas.js?v=30"></script>
 <script>
 const ALIM = [["Agoyán", "Ulba Río Verde", "Ag. Baños", ""], ["Atocha", "Pinllo", "Reparaciones CECON", "Móvil 30 Rural"], ["Atocha", "Pilisurco", "Reparaciones CECON", "Móvil 30 Rural"], ["Atocha", "Atocha", "Reparaciones CECON", ""], ["Atocha", "Maldonado", "Reparaciones CECON", ""], ["Atocha", "Martínez", "Reparaciones CECON", ""], ["Atocha", "La Victoria", "Reparaciones CECON", ""], ["Baños", "Baños", "Ag. Baños", ""], ["Baños", "San Vicente", "Ag. Baños", ""], ["Baños", "Pititig", "Ag. Baños", ""], ["Batán", "España", "Reparaciones CECON", ""], ["Batán", "Pérez de Anda", "Reparaciones CECON", ""], ["Batán", "Urbina", "Reparaciones CECON", ""], ["Batán", "Ficoa", "Reparaciones CECON", ""], ["Batán", "Miraflores", "Reparaciones CECON", ""], ["Batán", "Quisapincha", "Móvil 30 Rural", ""], ["Batán", "El Tropezón", "Móvil 30 Rural", "Reparaciones CECON"], ["Huachi", "Santa Rosa", "Móvil 30 Rural", ""], ["Huachi", "Cervantes", "Reparaciones CECON", ""], ["Huachi", "Magdalenas", "Reparaciones CECON", "Móvil 30 Rural"], ["Huachi", "José Peralta", "Reparaciones CECON", ""], ["Huachi", "Víctor Hugo", "Reparaciones CECON", ""], ["Huachi", "Mall de los Andes", "Reparaciones CECON", ""], ["Huachi", "Shopping Ambato", "Reparaciones CECON", ""], ["Huachi", "Miñarica", "Reparaciones CECON", ""], ["Huachi", "Carmelitas", "Reparaciones CECON", "Móvil 30 Rural"], ["Huachi", "Manuelita Sáenz", "Reparaciones CECON", ""], ["Huachi", "Industrial", "Reparaciones CECON", "Móvil 30 Rural"], ["Loreto", "Ingahurco", "Reparaciones CECON", ""], ["Loreto", "La Pradera", "Reparaciones CECON", ""], ["Loreto", "Catiglata", "Reparaciones CECON", ""], ["Loreto", "Unidad Nacional", "Reparaciones CECON", ""], ["Loreto", "Letamendi", "Reparaciones CECON", ""], ["Loreto", "Cashapamba", "Reparaciones CECON", ""], ["Loreto", "Ferroviaria", "Reparaciones CECON", ""], ["Loreto", "Subterránea", "Reparaciones CECON", ""], ["Loreto", "12 de Noviembre", "Reparaciones CECON", ""], ["Loreto", "San Antonio", "Reparaciones CECON", ""], ["Loreto", "Montalvo", "Reparaciones CECON", "Móvil 30 Rural;Agencia Quero CECON"], ["Loreto", "Manzana de Oro", "Reparaciones CECON", ""], ["Loreto", "Tisaleo", "Móvil 30 Rural", "Reparaciones CECON"], ["Loreto", "Huachi Grande", "Reparaciones CECON", "Móvil 30 Rural"], ["Mushullacta", "Pablo VI", "DZOP INCIDENCIAS", ""], ["Mushullacta", "Simón Bolívar", "DZOP INCIDENCIAS", ""], ["Mushullacta", "Palora", "DZOP INCIDENCIAS", ""], ["Mushullacta", "Consuelo", "DZOP INCIDENCIAS", ""], ["Oriente", "Bolivariana", "Reparaciones CECON", ""], ["Oriente", "Techo Propio", "Reparaciones CECON", ""], ["Oriente", "Real Audiencia", "Reparaciones CECON", ""], ["Oriente", "La Joya", "Reparaciones CECON", ""], ["Oriente", "El Cóndor", "Reparaciones CECON", ""], ["Oriente", "Universidad", "Reparaciones CECON", ""], ["Oriente", "American Park", "Reparaciones CECON", ""], ["Pelileo", "El Tambo", "Ag. Pelileo", ""], ["Pelileo", "Olmedo", "Ag. Pelileo", ""], ["Pelileo", "Pelileo", "Ag. Pelileo", ""], ["Pelileo", "Patate", "Ag. Pelileo", ""], ["Pelileo", "La Moya", "Ag. Pelileo", ""], ["Pelileo", "Huambaló", "Ag. Pelileo", ""], ["Península", "Izamba", "Reparaciones CECON", ""], ["Península", "Quillán", "Reparaciones CECON", "Móvil 30 Rural"], ["Península", "Indoamérica", "Reparaciones CECON", ""], ["Península", "Península", "Reparaciones CECON", ""], ["Pilahuín", "Pilahuín", "Móvil 30 Rural", ""], ["Pilahuín", "Pasa", "Móvil 30 Rural", ""], ["Pilahuín", "Yatzaputzán", "Móvil 30 Rural", ""], ["Pilahuín", "Chibuleo", "Móvil 30 Rural", ""], ["Píllaro", "Píllaro", "Ag. Píllaro", ""], ["Píllaro", "San Miguelito", "Ag. Píllaro", ""], ["Píllaro", "Santa Marianita", "Ag. Píllaro", ""], ["Píllaro", "Marcos Espinel", "Ag. Píllaro", ""], ["Píllaro", "San Andrés", "Ag. Píllaro", ""], ["Puyo 1", "Mera", "DZOP INCIDENCIAS", ""], ["Puyo 1", "Shell", "DZOP INCIDENCIAS", ""], ["Puyo 1", "Central", "DZOP INCIDENCIAS", ""], ["Puyo 1", "Circunvalación", "DZOP INCIDENCIAS", ""], ["Puyo 1", "Capricho", "DZOP INCIDENCIAS", ""], ["Puyo 1", "Tarqui", "DZOP INCIDENCIAS", ""], ["Puyo 2", "Calvario", "DZOP INCIDENCIAS", ""], ["Puyo 2", "Veracruz", "DZOP INCIDENCIAS", ""], ["Puyo 2", "Arajuno", "DZOP INCIDENCIAS", ""], ["Puyo 2", "Eloy Alfaro", "DZOP INCIDENCIAS", ""], ["Puyo 2", "La Merced", "DZOP INCIDENCIAS", ""], ["Quero", "Benítez", "Agencia Quero CECON", "Ag. Pelileo"], ["Quero", "Quero", "Agencia Quero CECON", ""], ["Quero", "Cevallos", "Agencia Quero CECON", ""], ["Quero", "Mocha", "Agencia Quero CECON", ""], ["Quero", "Hualcanga", "Agencia Quero CECON", ""], ["Samanga", "Pisque", "Reparaciones CECON", "Móvil 30 Rural"], ["Samanga", "Paso Lateral", "Reparaciones CECON", ""], ["Samanga", "Macasto", "Reparaciones CECON", "Móvil 30 Rural"], ["Samanga", "Cunchibamba", "Reparaciones CECON", ""], ["Samanga", "PIA 1", "Reparaciones CECON", ""], ["Samanga", "Puerto Arturo", "Reparaciones CECON", "Móvil 30 Rural"], ["Samanga", "Camino Real", "Reparaciones CECON", "Móvil 30 Rural"], ["Samanga", "PIA 2", "Reparaciones CECON", ""], ["Samanga", "Plasticaucho", "Reparaciones CECON", ""], ["Tena", "Amazonas", "DZON ATENCIÓN INCIDENCIAS", ""], ["Tena", "Arosemena Tola", "DZON ATENCIÓN INCIDENCIAS", ""], ["Tena", "Paushiyacu", "DZON ATENCIÓN INCIDENCIAS", ""], ["Tena", "Perimetral", "DZON ATENCIÓN INCIDENCIAS", ""], ["Tena", "Puerto Napo", "DZON ATENCIÓN INCIDENCIAS", ""], ["Tena Norte", "Sumaco", "DZON ATENCIÓN INCIDENCIAS", ""], ["Tena Norte", "Muyuna", "DZON ATENCIÓN INCIDENCIAS", ""], ["Tena Norte", "Archidona", "DZON ATENCIÓN INCIDENCIAS", ""], ["Tena Norte", "Jumandi", "DZON ATENCIÓN INCIDENCIAS", ""], ["Totoras", "Totoras", "Reparaciones CECON", ""], ["Totoras", "Bioalimentar", "Reparaciones CECON", ""], ["Totoras", "Palagua", "Reparaciones CECON", "Móvil 30 Rural"], ["Totoras", "San Francisco", "Reparaciones CECON", ""], ["Totoras", "Picaigua", "Reparaciones CECON", "Móvil 30 Rural"], ["Totoras", "Salasaca", "Reparaciones CECON", "Ag. Pelileo"]]; // [subestación, alimentador, grupo principal, grupo alterno ("a;b")]
 const EXTRA = { "Huambaló": ["PINGUE"] }; // sectores de la Ubicación que pertenecen a un primario
@@ -583,6 +608,7 @@ function yellowRect(src) {
 function show(v) {
   closeCam(); $("view").hidden = true;
   if (v === "cam") v = camFrom; if (v === "view") v = viewFrom;
+  $("modo").hidden = v !== "modo"; $("clave").hidden = v !== "clave";
   $("home").hidden = v !== "home"; $("inc").hidden = v !== "inc" && v !== "res";
   $("fal").hidden = v !== "fal"; $("fed").hidden = v !== "fed";
   if (v === "fal" || v === "fed") showFal(v);
@@ -591,9 +617,9 @@ function show(v) {
   $("prev").hidden = true;
   window.scrollTo(0, 0);
 }
-history.replaceState({ v: "home" }, "");
-addEventListener("popstate", e => show((e.state && e.state.v) || "home"));
-$("go-inc").onclick = () => { history.pushState({ v: "inc" }, ""); show("inc"); getWorker().then(getWorker2).catch(() => {}); };
+history.replaceState({ v: "modo" }, "");
+addEventListener("popstate", e => show((e.state && e.state.v) || "modo"));
+$("go-inc").onclick = () => { history.pushState({ v: "inc" }, ""); show("inc"); if (!modoIA) getWorker().then(getWorker2).catch(() => {}); };
 $("back").onclick = () => history.back();
 document.querySelectorAll("[data-back]").forEach(b => { b.onclick = () => history.back(); });
 $("again").onclick = () => history.back();
@@ -705,7 +731,30 @@ $("cam-shot").onclick = async () => {
 async function readPhoto(e) {
   const file = e.target.files[0]; e.target.value = ""; if (file) processFile(file);
 }
+// Lo leído (sin IA o con IA) pasa a los campos y se muestra el mensaje
+function showResult(p) {
+  $("shot-img").src = $("view-img").src = $("view-dl").href = $("thumb").src;
+  const inc = p.inc;
+  $("f-inc").value = inc;
+  const pickInc = v => { $("f-inc").value = v; chips($("c-inc"), p.incs, v, pickInc); refresh(); };
+  chips($("c-inc"), p.incs, inc, pickInc);
+  $("f-mot").value = p.motivo;
+  $("f-pri").value = p.prims[0] || ""; $("s-pri").hidden = true;
+  chips($("c-pri"), p.prims, p.prims[0], pickPri);
+  $("w-pri").hidden = p.prims.length === 1;
+  $("w-pri").textContent = p.prims.length ? "Hay varias coincidencias: confirma el primario." : "No se pudo deducir el primario: escríbelo y elige de las sugerencias.";
+  $("f-tel").value = p.phones[0] || "";
+  const pickTel = v => { $("f-tel").value = v; chips($("c-tel"), p.phones, v, pickTel); refresh(); };
+  chips($("c-tel"), p.phones, p.phones[0], pickTel);
+  grupo = ""; refresh();
+  if (p.incGuess && inc) { $("w-inc").hidden = false; $("w-inc").textContent = "Lectura dudosa: compara el número con la pantalla."; }
+  $("status").textContent = "Listo. Revisa los datos antes de enviar.";
+  $("barfill").style.width = "100%";
+  if (history.state && history.state.v === "res") show("res");
+  else { history.pushState({ v: "res" }, ""); show("res"); }
+}
 async function processFile(file) {
+  if (modoIA) return processFileIA(file);
   photoFile = file; msgEdited = false;
   $("thumb").src = URL.createObjectURL(file);
   $("prev").hidden = false; $("result").hidden = true; $("note").hidden = true;
@@ -718,7 +767,6 @@ async function processFile(file) {
       const blob = await new Promise(r => src.toBlob(r, "image/jpeg", 0.9));
       if (blob) { photoFile = new File([blob], "incidencia.jpg", { type: "image/jpeg" }); $("thumb").src = URL.createObjectURL(photoFile); }
     }
-    $("shot-img").src = $("view-img").src = $("view-dl").href = $("thumb").src;
     $("status").textContent = "Leyendo el comentario y las pestañas…";
     // El comentario se leyó a dos tamaños; el teléfono que coincide en más lecturas va primero
     const boxText = boxTexts.join("\n");
@@ -733,23 +781,8 @@ async function processFile(file) {
       inc = byB.length > 1 && byB[0].b - byB[1].b >= 3 ? byB[0].inc : tabs.at(-1).inc;
     }
     $("raw").textContent = text + (boxText ? "\n--- Comentario ---\n" + boxText : "") + (tabs.length ? "\n--- Pestañas ---\n" + tabs.map(t => `${t.inc} (${t.b})`).join("  ") : "");
-    $("f-inc").value = inc;
-    const pickInc = v => { $("f-inc").value = v; chips($("c-inc"), p.incs, v, pickInc); refresh(); };
-    chips($("c-inc"), p.incs, inc, pickInc);
-    $("f-mot").value = p.motivo;
-    $("f-pri").value = p.prims[0] || ""; $("s-pri").hidden = true;
-    chips($("c-pri"), p.prims, p.prims[0], pickPri);
-    $("w-pri").hidden = p.prims.length === 1;
-    $("w-pri").textContent = p.prims.length ? "Hay varias coincidencias: confirma el primario." : "No se pudo deducir el primario: escríbelo y elige de las sugerencias.";
-    $("f-tel").value = p.phones[0] || "";
-    const pickTel = v => { $("f-tel").value = v; chips($("c-tel"), p.phones, v, pickTel); refresh(); };
-    chips($("c-tel"), p.phones, p.phones[0], pickTel);
-    grupo = ""; refresh();
-    if (p.incGuess && inc) { $("w-inc").hidden = false; $("w-inc").textContent = "Lectura dudosa: compara el número con la pantalla."; }
-    $("status").textContent = "Listo. Revisa los datos antes de enviar.";
-    $("barfill").style.width = "100%";
-    if (history.state && history.state.v === "res") show("res");
-    else { history.pushState({ v: "res" }, ""); show("res"); }
+    p.inc = inc;
+    showResult(p);
   } catch (err) {
     $("status").textContent = "No se pudo leer la foto. Vuelve a intentarlo con una foto más derecha y cercana.";
   }
@@ -777,7 +810,8 @@ $("share").onclick = async () => {
 };
 </script>
 
-<script src="fallas.js?v=29"></script>
+<script src="fallas.js?v=30"></script>
+<script src="ia.js?v=30"></script>
 <script>
 // Actualización: al volver a la app se busca versión nueva; si llega, se recarga sola en el inicio
 // o aparece un aviso para tocar (así no se pierde una incidencia a medio enviar)
@@ -788,7 +822,7 @@ if ("serviceWorker" in navigator) {
   }).catch(() => {});
   navigator.serviceWorker.addEventListener("controllerchange", () => {
     if (!hadController) return;
-    if (!$("home").hidden) location.reload();
+    if (!$("modo").hidden) location.reload();
     else $("update").hidden = false;
   });
 }
