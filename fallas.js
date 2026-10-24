@@ -40,8 +40,9 @@ const lineTexts = data => (data.lines || []).map(l => l.text).filter(t => t.trim
 function parseInc(data) {
   const N = norm(fixO(data.text));
   const incs = [...new Set([...N.matchAll(/INC\s*((?:\d\s?){10,11})(?!\d)/g)].map(m => m[1].replace(/\s/g, "")).filter(d => /^110\d{7,8}$/.test(d)))];
-  const cli = /CLIENTES\s+AFECTADOS\s*:?\s*(\d[\d.,]*)/.exec(N);
-  return { incs, clientes: cli ? cli[1].replace(/[.,]/g, "") : "", score: !!incs.length + !!cli };
+  const cli = /CLIENTES\s*AFECTADOS\s*:?\s*(\d[\d.,]*)/.exec(N);
+  const clientes = cli ? cli[1].replace(/[.,]/g, "") : "";
+  return { incs, clientes, score: !!incs.length + !!clientes };
 }
 // Historial del equipo: el último cierre (si lo hay) y la primera apertura que se alcance a ver
 function parseHist(data) {
@@ -65,8 +66,12 @@ function parseHist(data) {
 // Disparos: la primera hora del equipo y las fases que dispararon en esos segundos
 function parseTrips(data, tag) {
   let rows = lineTexts(data).map(t => ({ t, M: norm(fixO(t)), st: stamp(t) })).filter(r => r.st && /DISPAR|-\s*D[A-Z0-9]/.test(r.M));
-  const T = squash(tag || "");
-  if (T && rows.some(r => squash(r.M).includes(T))) rows = rows.filter(r => squash(r.M).includes(T));
+  // El lector a veces cambia un carácter del código (8R020 → 8R070, 8ROZ0): se acepta una diferencia
+  const T = squash(tag || "").replace(/O/g, "0");
+  const hasTag = M => { const q = squash(M).replace(/O/g, "0");
+    for (let i = 0; i + T.length <= q.length; i++) { let d = 0; for (let j = 0; j < T.length && d < 2; j++) d += q[i + j] !== T[j]; if (d < 2) return true; }
+    return false; };
+  if (T && rows.some(r => hasTag(r.M))) rows = rows.filter(r => hasTag(r.M));
   if (!rows.length) return { score: 0 };
   const first = rows.reduce((a, b) => (b.st.n < a.st.n ? b : a));
   const fases = new Set();
@@ -78,9 +83,11 @@ function parseTrips(data, tag) {
 }
 // Corrientes: columnas de 3 o 4 valores "34.23 A"; se toman los 3 primeros (A, B, C)
 function parseAmps(data, eqName) {
-  const L = (data.lines || []).flatMap(l => {
-    const m = /^\s*(\d{1,4}[.,]\d{1,3})\s*A\b/.exec(fixO(l.text));
-    return m ? [{ v: m[1].replace(",", "."), x: l.bbox.x0, y: (l.bbox.y0 + l.bbox.y1) / 2, h: l.bbox.y1 - l.bbox.y0 }] : [];
+  const ws = data.words || [];
+  const L = ws.flatMap((w, i) => {
+    const t = fixO(w.text), m = /^(\d{1,4}[.,]\d{1,3})(A?)$/.exec(t);
+    if (!m || !(m[2] || /^A$/i.test((ws[i + 1] || {}).text || ""))) return [];
+    return [{ v: m[1].replace(",", "."), x: w.bbox.x0, y: (w.bbox.y0 + w.bbox.y1) / 2, h: w.bbox.y1 - w.bbox.y0 }];
   }).sort((a, b) => a.y - b.y);
   const groups = [];
   for (const r of L) {
@@ -108,7 +115,44 @@ function prep(src) {
   g.drawImage(src, 0, 0, W, H);
   return c;
 }
-let readQueue = Promise.resolve();
+// Foto 1 (pantalla clara, letras grandes): blanco y negro a 3000 px, así se leen todas las pestañas INC
+function prepBW(src, W = 3000) {
+  W = Math.min(W, src.width); const H = Math.round(src.height * W / src.width);
+  const c = document.createElement("canvas"); c.width = W; c.height = H;
+  const g = c.getContext("2d", { willReadFrequently: true }); g.drawImage(src, 0, 0, W, H);
+  const id = g.getImageData(0, 0, W, H), d = id.data; let mean = 0;
+  for (let i = 0; i < d.length; i += 4) mean += d[i] * .3 + d[i + 1] * .59 + d[i + 2] * .11;
+  mean /= d.length / 4;
+  for (let i = 0; i < d.length; i += 4) d[i] = d[i + 1] = d[i + 2] = d[i] * .3 + d[i + 1] * .59 + d[i + 2] * .11 > mean * .75 ? 255 : 0;
+  g.putImageData(id, 0, 0); return c;
+}
+// Foto 4 (unifilar oscuro): solo lo verde (las medidas) queda en negro sobre blanco
+function prepGreen(src, W = 1300) {
+  W = Math.min(W, src.width); const H = Math.round(src.height * W / src.width);
+  const c = document.createElement("canvas"); c.width = W; c.height = H;
+  const g = c.getContext("2d", { willReadFrequently: true }); g.drawImage(src, 0, 0, W, H);
+  const id = g.getImageData(0, 0, W, H), d = id.data;
+  for (let i = 0; i < d.length; i += 4) d[i] = d[i + 1] = d[i + 2] = d[i + 1] - Math.max(d[i], d[i + 2]) > 40 && d[i + 1] > 90 ? 0 : 255;
+  g.putImageData(id, 0, 0); return c;
+}
+// Clientes afectados: el número queda lejos de la etiqueta; se recorta esa franja y se lee solo con dígitos
+async function readClientes(w, src, pic, data) {
+  const lab = (data.words || []).find(x => /AFECTADOS/.test(norm(x.text)));
+  if (!lab) return "";
+  const k = src.width / pic.width, h = (lab.bbox.y1 - lab.bbox.y0) * k;
+  const x0 = lab.bbox.x1 * k, x1 = Math.min(src.width, x0 + 18 * h), y0 = Math.max(0, lab.bbox.y0 * k - 0.6 * h);
+  const c = crop(src, x0, y0, x1 - x0, 2.2 * h, Math.round((x1 - x0) * 80 / (2.2 * h)));
+  // El fondo de la pantalla tiene trama: solo lo bien oscuro (el número en negrita) queda negro
+  const g = c.getContext("2d"), id = g.getImageData(0, 0, c.width, c.height), d = id.data;
+  let mean = 0; for (let i = 0; i < d.length; i += 4) mean += d[i]; mean /= d.length / 4;
+  for (let i = 0; i < d.length; i += 4) d[i] = d[i + 1] = d[i + 2] = d[i] < mean * .55 ? 0 : 255;
+  g.putImageData(id, 0, 0);
+  // Lector aparte solo para dígitos (así los otros no quedan limitados a números)
+  const wd = await (digitsReady = digitsReady || Tesseract.createWorker("spa", 1, { workerPath: new URL("ocr/worker-wrap.js", location.href).href, corePath: new URL("ocr/", location.href).href, langPath: new URL("ocr/lang", location.href).href, workerBlobURL: false, gzip: true }).then(async x => { await x.setParameters({ tessedit_pageseg_mode: "7", tessedit_char_whitelist: "0123456789" }); return x; }));
+  const t = (await wd.recognize(c)).data.text.replace(/\D/g, "");
+  return t.length && t.length <= 6 ? t : "";
+}
+let readQueue = Promise.resolve(), digitsReady = null;
 function readSlot(f, n, file) {
   const id = f.id;
   (shots[id] = shots[id] || [])[n] = URL.createObjectURL(file);
@@ -121,8 +165,13 @@ function readSlot(f, n, file) {
     let best = null;
     for (const rot of rots) {
       f.read[n] = "Leyendo la foto…"; if (cur === f) drawSlots();
-      const { data } = await w.recognize(prep(await orient(file, rot)));
+      const src = await orient(file, rot);
+      const pic = n === 0 ? prepBW(src) : n === 3 ? prepGreen(src) : prep(src);
+      if (n === 3) await w.setParameters({ tessedit_pageseg_mode: "11" });
+      let data;
+      try { data = (await w.recognize(pic)).data; } finally { if (n === 3) await w.setParameters({ tessedit_pageseg_mode: "3" }); }
       const r = n === 0 ? parseInc(data) : n === 1 ? parseHist(data) : n === 2 ? parseTrips(data, f.hist && f.hist.tag) : parseAmps(data, f.eq && f.eq.nombre);
+      if (n === 0 && r.incs.length && !r.clientes) { r.clientes = await readClientes(w, src, pic, data); r.score += !!r.clientes; }
       if (!best || r.score > best.r.score) best = { r, data };
       if (r.score >= (n === 3 ? 1 : 2)) break;
     }
@@ -148,17 +197,17 @@ function applySlot(f, n, r, text) {
     if (r.fases) f.fases = r.fases;
     f.read[n] = r.score ? `Disparo ${r.open.slice(11)}${r.fases ? " · fase " + r.fases : ""}` : "No encontré disparos.";
   } else {
+    // La lectura del unifilar es poco segura: se ofrece para tocarla, no se llena sola
     f.amps = r.groups.map(g => g.vals);
-    if (f.amps[0]) [f.ia, f.ib, f.ic] = f.amps[0];
-    f.read[n] = r.score ? `Corrientes ${f.amps[0].join(" / ")} A` : "No encontré corrientes.";
+    f.read[n] = r.score ? "Revisa las corrientes abajo: toca la lectura si coincide, o escríbelas." : "No pude leer las corrientes: escríbelas abajo.";
   }
-  if (!f.eq) guessEquipo(f);
+  if (n === 3 && !f.eq) guessEquipo(f);
   saveAll();
-  if (cur === f) fillEditor();
+  if (cur === f) { drawSlots(); fillEditor(); }
 }
 // Equipo por su nombre en cualquiera de las fotos (unifilar: "REC. POMONA", "RIO VERDE - 93")
 function guessEquipo(f) {
-  const all = (f.raw || []).filter(Boolean).join("\n"), sq = squash(all), words = norm(all);
+  const all = (f.raw || [])[3] || "", sq = squash(all), words = norm(all);
   const hits = EQUIPOS.filter(e => e.k.length >= 5 && sq.includes(e.k));
   hits.sort((a, b) => (b.tipo === "rec" && /REC/.test(words)) - (a.tipo === "rec" && /REC/.test(words)) || b.k.length - a.k.length);
   f.eqHits = hits.slice(0, 4).map(e => [e.tipo, e.nombre]);
@@ -272,7 +321,13 @@ function fillEditor() {
     eb.appendChild(b);
   }
   $("fx-con-f").hidden = f.estado !== "CERRADO";
-  chips($("fx-c-amp"), (f.amps || []).map(a => a.join(" / ")), [f.ia, f.ib, f.ic].join(" / "), v => { [f.ia, f.ib, f.ic] = v.split(" / "); changed(); });
+  const ab = $("fx-c-amp"), cura = [f.ia, f.ib, f.ic].join(" / "); ab.innerHTML = ""; ab.hidden = !(f.amps || []).length;
+  for (const a of f.amps || []) {
+    const b = document.createElement("button"); b.className = "chip"; b.type = "button"; b.textContent = "Leí " + a.join(" / ") + " A";
+    b.setAttribute("aria-pressed", String(a.join(" / ") === cura));
+    b.onclick = () => { [f.ia, f.ib, f.ic] = a; changed(); };
+    ab.appendChild(b);
+  }
   // Carga: corrientes de la foto 4; si no hay y es alimentador, el Excel; si es reconectador, a mano
   const amps = f.ia || f.ib || f.ic, d = !amps && demandaKW(f);
   if (d && !f.kwManual) f.kw = String(d.kw);
