@@ -119,6 +119,11 @@ details pre{white-space:pre-wrap;word-break:break-word;font-family:var(--mono);f
 .slot-h small{color:var(--muted)}
 .slot .pick button,.slot .pick label{padding:10px;font-size:.95rem}
 .row3{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.dt{display:grid;grid-template-columns:minmax(0,2fr) repeat(3,minmax(0,1fr));gap:6px}
+.dt input{text-align:center;padding:10px 4px}
+.inmic{display:flex;gap:8px}
+.mic{flex:none;width:48px;border:1px solid var(--line);border-radius:8px;background:var(--surface);font-size:1.2rem;cursor:pointer}
+.mic[aria-pressed="true"]{background:var(--accent);border-color:var(--accent)}
 .danger{background:none;color:var(--warn);padding:8px 0;font-weight:600}
 @media (prefers-reduced-motion:reduce){.bar i{transition:none}}
 </style>
@@ -129,7 +134,7 @@ details pre{white-space:pre-wrap;word-break:break-word;font-family:var(--mono);f
 <div class="wrap">
   <header>
     <h1>Despacho de Incidencias</h1>
-    <span class="eyebrow">EEASA · CECON · v22</span>
+    <span class="eyebrow">EEASA · CECON · v23</span>
   </header>
 
   <section id="home" class="home">
@@ -208,13 +213,7 @@ details pre{white-space:pre-wrap;word-break:break-word;font-family:var(--mono);f
   <section id="fed" hidden>
     <div class="fields">
       <div class="top"><button class="back" data-back>‹ Fallas</button><button class="danger" id="fx-del" type="button">Borrar</button></div>
-      <div id="fx-slots" class="fields"></div>
-      <div class="field">
-        <label for="fx-inc">Incidencia</label>
-        <div class="chips" id="fx-c-inc"></div>
-        <input id="fx-inc" class="mono" inputmode="numeric" maxlength="11" autocomplete="off">
-      </div>
-      <div class="field"><label for="fx-cli">Clientes afectados</label><input id="fx-cli" class="mono" inputmode="numeric" autocomplete="off"></div>
+      <!-- Lo primero: el equipo -->
       <div class="field">
         <label for="fx-eq">Equipo (alimentador o reconectador)</label>
         <div class="chips" id="fx-c-eq"></div>
@@ -222,10 +221,17 @@ details pre{white-space:pre-wrap;word-break:break-word;font-family:var(--mono);f
         <div class="sugs" id="fx-s-eq" hidden></div>
         <span class="flag" id="fx-w-eq" hidden></span>
       </div>
+      <div id="fx-slots" class="fields"></div>
+      <div class="field">
+        <label for="fx-inc">Incidencia</label>
+        <div class="chips" id="fx-c-inc"></div>
+        <div class="inmic"><input id="fx-inc" class="mono" inputmode="numeric" maxlength="11" autocomplete="off"><button class="mic" type="button" data-mic="fx-inc" aria-label="Dictar la incidencia" hidden>🎤</button></div>
+      </div>
+      <div class="field"><label for="fx-cli">Clientes afectados</label><div class="inmic"><input id="fx-cli" class="mono" inputmode="numeric" autocomplete="off"><button class="mic" type="button" data-mic="fx-cli" aria-label="Dictar los clientes" hidden>🎤</button></div></div>
       <div class="field"><label>Fases que dispararon</label><div class="chips" id="fx-fases"></div></div>
-      <div class="field"><label for="fx-des">Desconexión (dd/mm/aaaa hh:mm:ss)</label><input id="fx-des" class="mono" autocomplete="off" placeholder="23/10/2026 09:53:23"></div>
+      <div class="field"><label for="fx-des-d">Desconexión (fecha · hora : min : seg)</label><div class="dt" id="fx-des"></div></div>
       <div class="field"><label>Estado</label><div class="chips" id="fx-est"></div></div>
-      <div class="field" id="fx-con-f"><label for="fx-con">Conexión (último cierre)</label><input id="fx-con" class="mono" autocomplete="off" placeholder="23/10/2026 09:58:05"></div>
+      <div class="field" id="fx-con-f"><label for="fx-con-d">Conexión (último cierre)</label><div class="dt" id="fx-con"></div></div>
       <div class="field">
         <label>Corrientes A / B / C</label>
         <div class="chips" id="fx-c-amp"></div>
@@ -257,7 +263,7 @@ details pre{white-space:pre-wrap;word-break:break-word;font-family:var(--mono);f
 </div>
 
 <script src="ocr/tesseract.min.js"></script>
-<script src="datos/fallas.js?v=22"></script>
+<script src="datos/fallas.js?v=23"></script>
 <script>
 const ALIM = [["Agoyán", "Ulba Río Verde", "Ag. Baños", ""], ["Atocha", "Pinllo", "Reparaciones CECON", "Móvil 30 Rural"], ["Atocha", "Pilisurco", "Reparaciones CECON", "Móvil 30 Rural"], ["Atocha", "Atocha", "Reparaciones CECON", ""], ["Atocha", "Maldonado", "Reparaciones CECON", ""], ["Atocha", "Martínez", "Reparaciones CECON", ""], ["Atocha", "La Victoria", "Reparaciones CECON", ""], ["Baños", "Baños", "Ag. Baños", ""], ["Baños", "San Vicente", "Ag. Baños", ""], ["Baños", "Pititig", "Ag. Baños", ""], ["Batán", "España", "Reparaciones CECON", ""], ["Batán", "Pérez de Anda", "Reparaciones CECON", ""], ["Batán", "Urbina", "Reparaciones CECON", ""], ["Batán", "Ficoa", "Reparaciones CECON", ""], ["Batán", "Miraflores", "Reparaciones CECON", ""], ["Batán", "Quisapincha", "Móvil 30 Rural", ""], ["Batán", "El Tropezón", "Móvil 30 Rural", "Reparaciones CECON"], ["Huachi", "Santa Rosa", "Móvil 30 Rural", ""], ["Huachi", "Cervantes", "Reparaciones CECON", ""], ["Huachi", "Magdalenas", "Reparaciones CECON", "Móvil 30 Rural"], ["Huachi", "José Peralta", "Reparaciones CECON", ""], ["Huachi", "Víctor Hugo", "Reparaciones CECON", ""], ["Huachi", "Mall de los Andes", "Reparaciones CECON", ""], ["Huachi", "Shopping Ambato", "Reparaciones CECON", ""], ["Huachi", "Miñarica", "Reparaciones CECON", ""], ["Huachi", "Carmelitas", "Reparaciones CECON", "Móvil 30 Rural"], ["Huachi", "Manuelita Sáenz", "Reparaciones CECON", ""], ["Huachi", "Industrial", "Reparaciones CECON", "Móvil 30 Rural"], ["Loreto", "Ingahurco", "Reparaciones CECON", ""], ["Loreto", "La Pradera", "Reparaciones CECON", ""], ["Loreto", "Catiglata", "Reparaciones CECON", ""], ["Loreto", "Unidad Nacional", "Reparaciones CECON", ""], ["Loreto", "Letamendi", "Reparaciones CECON", ""], ["Loreto", "Cashapamba", "Reparaciones CECON", ""], ["Loreto", "Ferroviaria", "Reparaciones CECON", ""], ["Loreto", "Subterránea", "Reparaciones CECON", ""], ["Loreto", "12 de Noviembre", "Reparaciones CECON", ""], ["Loreto", "San Antonio", "Reparaciones CECON", ""], ["Loreto", "Montalvo", "Reparaciones CECON", "Móvil 30 Rural;Agencia Quero CECON"], ["Loreto", "Manzana de Oro", "Reparaciones CECON", ""], ["Loreto", "Tisaleo", "Móvil 30 Rural", "Reparaciones CECON"], ["Loreto", "Huachi Grande", "Reparaciones CECON", "Móvil 30 Rural"], ["Mushullacta", "Pablo VI", "DZOP INCIDENCIAS", ""], ["Mushullacta", "Simón Bolívar", "DZOP INCIDENCIAS", ""], ["Mushullacta", "Palora", "DZOP INCIDENCIAS", ""], ["Mushullacta", "Consuelo", "DZOP INCIDENCIAS", ""], ["Oriente", "Bolivariana", "Reparaciones CECON", ""], ["Oriente", "Techo Propio", "Reparaciones CECON", ""], ["Oriente", "Real Audiencia", "Reparaciones CECON", ""], ["Oriente", "La Joya", "Reparaciones CECON", ""], ["Oriente", "El Cóndor", "Reparaciones CECON", ""], ["Oriente", "Universidad", "Reparaciones CECON", ""], ["Oriente", "American Park", "Reparaciones CECON", ""], ["Pelileo", "El Tambo", "Ag. Pelileo", ""], ["Pelileo", "Olmedo", "Ag. Pelileo", ""], ["Pelileo", "Pelileo", "Ag. Pelileo", ""], ["Pelileo", "Patate", "Ag. Pelileo", ""], ["Pelileo", "La Moya", "Ag. Pelileo", ""], ["Pelileo", "Huambaló", "Ag. Pelileo", ""], ["Península", "Izamba", "Reparaciones CECON", ""], ["Península", "Quillán", "Reparaciones CECON", "Móvil 30 Rural"], ["Península", "Indoamérica", "Reparaciones CECON", ""], ["Península", "Península", "Reparaciones CECON", ""], ["Pilahuín", "Pilahuín", "Móvil 30 Rural", ""], ["Pilahuín", "Pasa", "Móvil 30 Rural", ""], ["Pilahuín", "Yatzaputzán", "Móvil 30 Rural", ""], ["Pilahuín", "Chibuleo", "Móvil 30 Rural", ""], ["Píllaro", "Píllaro", "Ag. Píllaro", ""], ["Píllaro", "San Miguelito", "Ag. Píllaro", ""], ["Píllaro", "Santa Marianita", "Ag. Píllaro", ""], ["Píllaro", "Marcos Espinel", "Ag. Píllaro", ""], ["Píllaro", "San Andrés", "Ag. Píllaro", ""], ["Puyo 1", "Mera", "DZOP INCIDENCIAS", ""], ["Puyo 1", "Shell", "DZOP INCIDENCIAS", ""], ["Puyo 1", "Central", "DZOP INCIDENCIAS", ""], ["Puyo 1", "Circunvalación", "DZOP INCIDENCIAS", ""], ["Puyo 1", "Capricho", "DZOP INCIDENCIAS", ""], ["Puyo 1", "Tarqui", "DZOP INCIDENCIAS", ""], ["Puyo 2", "Calvario", "DZOP INCIDENCIAS", ""], ["Puyo 2", "Veracruz", "DZOP INCIDENCIAS", ""], ["Puyo 2", "Arajuno", "DZOP INCIDENCIAS", ""], ["Puyo 2", "Eloy Alfaro", "DZOP INCIDENCIAS", ""], ["Puyo 2", "La Merced", "DZOP INCIDENCIAS", ""], ["Quero", "Benítez", "Agencia Quero CECON", "Ag. Pelileo"], ["Quero", "Quero", "Agencia Quero CECON", ""], ["Quero", "Cevallos", "Agencia Quero CECON", ""], ["Quero", "Mocha", "Agencia Quero CECON", ""], ["Quero", "Hualcanga", "Agencia Quero CECON", ""], ["Samanga", "Pisque", "Reparaciones CECON", "Móvil 30 Rural"], ["Samanga", "Paso Lateral", "Reparaciones CECON", ""], ["Samanga", "Macasto", "Reparaciones CECON", "Móvil 30 Rural"], ["Samanga", "Cunchibamba", "Reparaciones CECON", ""], ["Samanga", "PIA 1", "Reparaciones CECON", ""], ["Samanga", "Puerto Arturo", "Reparaciones CECON", "Móvil 30 Rural"], ["Samanga", "Camino Real", "Reparaciones CECON", "Móvil 30 Rural"], ["Samanga", "PIA 2", "Reparaciones CECON", ""], ["Samanga", "Plasticaucho", "Reparaciones CECON", ""], ["Tena", "Amazonas", "DZON ATENCIÓN INCIDENCIAS", ""], ["Tena", "Arosemena Tola", "DZON ATENCIÓN INCIDENCIAS", ""], ["Tena", "Paushiyacu", "DZON ATENCIÓN INCIDENCIAS", ""], ["Tena", "Perimetral", "DZON ATENCIÓN INCIDENCIAS", ""], ["Tena", "Puerto Napo", "DZON ATENCIÓN INCIDENCIAS", ""], ["Tena Norte", "Sumaco", "DZON ATENCIÓN INCIDENCIAS", ""], ["Tena Norte", "Muyuna", "DZON ATENCIÓN INCIDENCIAS", ""], ["Tena Norte", "Archidona", "DZON ATENCIÓN INCIDENCIAS", ""], ["Tena Norte", "Jumandi", "DZON ATENCIÓN INCIDENCIAS", ""], ["Totoras", "Totoras", "Reparaciones CECON", ""], ["Totoras", "Bioalimentar", "Reparaciones CECON", ""], ["Totoras", "Palagua", "Reparaciones CECON", "Móvil 30 Rural"], ["Totoras", "San Francisco", "Reparaciones CECON", ""], ["Totoras", "Picaigua", "Reparaciones CECON", "Móvil 30 Rural"], ["Totoras", "Salasaca", "Reparaciones CECON", "Ag. Pelileo"]]; // [subestación, alimentador, grupo principal, grupo alterno ("a;b")]
 const EXTRA = { "Huambaló": ["PINGUE"] }; // sectores de la Ubicación que pertenecen a un primario
@@ -751,7 +757,7 @@ $("share").onclick = async () => {
 };
 </script>
 
-<script src="fallas.js?v=22"></script>
+<script src="fallas.js?v=23"></script>
 <script>
 // Actualización: al volver a la app se busca versión nueva; si llega, se recarga sola en el inicio
 // o aparece un aviso para tocar (así no se pierde una incidencia a medio enviar)

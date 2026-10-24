@@ -290,7 +290,7 @@ function drawSlots() {
 }
 
 // Editor: campos ↔ falla
-const FX = { inc: "fx-inc", clientes: "fx-cli", des: "fx-des", con: "fx-con", ia: "fx-ia", ib: "fx-ib", ic: "fx-ic", kw: "fx-kw", origen: "fx-ori", causa: "fx-cau", subcausa: "fx-sub" };
+const FX = { inc: "fx-inc", clientes: "fx-cli", ia: "fx-ia", ib: "fx-ib", ic: "fx-ic", kw: "fx-kw", origen: "fx-ori", causa: "fx-cau", subcausa: "fx-sub" };
 function fillEditor() {
   const f = cur; if (!f) return;
   for (const [k, id] of Object.entries(FX)) if (document.activeElement !== $(id)) $(id).value = f[k] || "";
@@ -315,6 +315,7 @@ function fillEditor() {
     eb.appendChild(b);
   }
   $("fx-con-f").hidden = f.estado !== "CERRADO";
+  for (const k of ["des", "con"]) fillTime(k);
   const ab = $("fx-c-amp"), cura = [f.ia, f.ib, f.ic].join(" / "); ab.innerHTML = ""; ab.hidden = !(f.amps || []).length;
   for (const a of f.amps || []) {
     const b = document.createElement("button"); b.className = "chip"; b.type = "button"; b.textContent = "Leí " + a.join(" / ") + " A";
@@ -336,6 +337,49 @@ function changed() { cur.enviada = false; saveAll(); fillEditor(); }
 for (const [k, id] of Object.entries(FX)) $(id).addEventListener("input", () => {
   cur[k] = $(id).value.trim(); if (k === "kw") cur.kwManual = !!cur.kw; changed();
 });
+
+// Horas en cuadritos: fecha (hoy si no hay) · hora · minutos · segundos
+const TIME = ["d", "h", "m", "s"];
+for (const k of ["des", "con"]) {
+  const box = $("fx-" + k);
+  box.innerHTML = '<input type="date" class="mono"><input class="mono" inputmode="numeric" maxlength="2" placeholder="hh" aria-label="Hora"><input class="mono" inputmode="numeric" maxlength="2" placeholder="mm" aria-label="Minutos"><input class="mono" inputmode="numeric" maxlength="2" placeholder="ss" aria-label="Segundos">';
+  const ins = [...box.children];
+  ins[0].id = `fx-${k}-d`;
+  ins.forEach((el, i) => el.addEventListener("input", () => {
+    if (i) { el.value = el.value.replace(/\D/g, "").slice(0, 2); if (el.value.length === 2 && ins[i + 1]) ins[i + 1].focus(); }
+    const [d, h, m, s] = ins.map(x => x.value);
+    const ymd = /^(\d{4})-(\d{2})-(\d{2})$/.exec(d);
+    cur[k] = ymd && h !== "" ? `${ymd[3]}/${ymd[2]}/${ymd[1]} ${pad(Math.min(23, +h))}:${pad(Math.min(59, +m || 0))}:${pad(Math.min(59, +s || 0))}` : "";
+    changed();
+  }));
+}
+function fillTime(k) {
+  const ins = [...$("fx-" + k).children];
+  if (ins.includes(document.activeElement)) return;
+  const v = /^(\d{2})\/(\d{2})\/(\d{4}) (\d{2}):(\d{2}):(\d{2})$/.exec(cur[k] || ""), t = new Date();
+  ins[0].value = v ? `${v[3]}-${v[2]}-${v[1]}` : `${t.getFullYear()}-${pad(t.getMonth() + 1)}-${pad(t.getDate())}`;
+  [1, 2, 3].forEach(i => { ins[i].value = v ? v[i + 3] : ""; });
+}
+
+// Micrófono para dictar la incidencia o los clientes ("uno uno cero tres…" o "110 310…")
+const Speech = window.SpeechRecognition || window.webkitSpeechRecognition;
+const DIGITOS = { cero: 0, uno: 1, una: 1, dos: 2, tres: 3, cuatro: 4, cinco: 5, seis: 6, siete: 7, ocho: 8, nueve: 9 };
+for (const b of document.querySelectorAll("[data-mic]")) {
+  if (!Speech) continue;
+  b.hidden = false;
+  b.onclick = () => {
+    const inp = $(b.dataset.mic), rec = new Speech();
+    rec.lang = "es-EC"; rec.interimResults = false; rec.maxAlternatives = 3;
+    rec.onresult = e => {
+      const alts = [...e.results[0]].map(a => norm(a.transcript).toLowerCase().replace(/[a-z]+/g, w => DIGITOS[w] ?? " ").replace(/\D/g, ""));
+      const n = alts.find(x => b.dataset.mic !== "fx-inc" || /^110\d{7,8}$/.test(x)) || alts[0];
+      if (n) { inp.value = n; inp.dispatchEvent(new Event("input")); }
+    };
+    rec.onend = () => b.setAttribute("aria-pressed", "false");
+    rec.onerror = () => note("No pude usar el micrófono. Revisa el permiso del navegador.");
+    b.setAttribute("aria-pressed", "true"); rec.start();
+  };
+}
 
 // Buscador de equipo: alimentadores (con su S/E) y reconectadores
 function suggestEq() {
