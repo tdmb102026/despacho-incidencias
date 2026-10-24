@@ -1,14 +1,13 @@
 // ---------- Fallas internas ----------
-// Con 3 o 4 fotos del SCADA/ADMS se arma la fila de Para_Bitacora: 1) incidencia y clientes,
-// 2) historial del equipo (apertura y último cierre), 3) lista de disparos (hora y fases),
-// 4) opcional: corrientes. La falla se guarda en el celular y se envía a la hoja de Google;
+// Con 2 o 3 fotos del SCADA/ADMS se arma la fila de Para_Bitacora: 1) incidencia y clientes,
+// 2) historial del equipo (apertura y último cierre, por el color de cada fila),
+// 3) opcional: corrientes; si no se leen, la carga sale del Excel de demanda. Las fases se marcan a mano. La falla se guarda en el celular y se envía a la hoja de Google;
 // en la PC el marcador "Llenar Bitácora" la lee y llena el formulario.
 
 const SLOTS = [
   { t: "1 · Incidencia", d: "Gestión de incidencias: pestaña INC y Clientes afectados" },
-  { t: "2 · Historial del equipo", d: "Event Summary: apertura y último cierre (lo más nuevo arriba)" },
-  { t: "3 · Disparos", d: "Lista filtrada por DISPA: hora del disparo y fases" },
-  { t: "4 · Cargas (opcional)", d: "Unifilar con las corrientes del equipo" },
+  { t: "2 · Historial del equipo", d: "Event Summary: azul = apertura, verde = reconexión automática, blanco = cierre del operador" },
+  { t: "3 · Cargas (opcional)", d: "Unifilar con las corrientes del equipo; sin foto se usa el Excel de demanda" },
 ];
 const EQUIPOS = [
   ...DEMANDA.map(([se, nombre], i) => ({ tipo: "alim", se, nombre, i })),
@@ -32,9 +31,9 @@ const saveAll = () => store.set("fallas", fallas.slice(-60));
 // ---------- lectura de las fotos ----------
 const fixO = s => s.replace(/(?<=\d)[OoQ]|[OoQ](?=\d)/g, "0");
 const pad = x => String(x).padStart(2, "0");
-// Fecha y hora del SCADA: 23/10/2026 9:53:23,003 → 23/10/2026 09:53:23
+// Fecha y hora del SCADA: 23/10/2026 9:53:23,003 → 23/10/2026 09:53:23 (a veces se lee "2310/2026")
 function stamp(line) {
-  const m = /(\d{1,2})\s*\/\s*(\d{1,2})\s*\/\s*(\d{4})\s+(\d{1,2})\s*[:.]\s*(\d{2})\s*[:.]\s*(\d{2})/.exec(fixO(line));
+  const m = /(\d{1,2})\s*\/?\s*(\d{1,2})\s*\/\s*(\d{4})\s+(\d{1,2})\s*[:.]\s*(\d{2})\s*[:.]\s*(\d{2})/.exec(fixO(line));
   if (!m) return null;
   return { s: `${pad(m[1])}/${pad(m[2])}/${m[3]} ${pad(m[4])}:${m[5]}:${m[6]}`, n: Date.UTC(+m[3], m[2] - 1, +m[1], +m[4], +m[5], +m[6]) };
 }
@@ -47,42 +46,49 @@ function parseInc(data) {
   const clientes = cli ? cli[1].replace(/[.,]/g, "") : "";
   return { incs, clientes, score: !!incs.length + !!clientes };
 }
-// Historial del equipo: el último cierre (si lo hay) y la primera apertura que se alcance a ver
-function parseHist(data) {
-  const N = norm(fixO(data.text)), ev = [];
-  for (const t of lineTexts(data)) {
+// Historial del equipo (Event Summary). Cada fila tiene su color: azul = se abrió (desconexión),
+// verde = reconexión automática, blanco = comando del operador. Celeste (control) no cuenta.
+// Se lee cada color por separado, así cada fila ya viene clasificada.
+const HIST_COLORS = {
+  azul: (r, g, b) => b > 150 && b - r > 80 && b - g > 50,
+  verde: (r, g, b) => g > 130 && g - r > 40 && g - b > 40,
+  blanco: (r, g, b) => Math.min(r, g, b) > 165 && Math.max(r, g, b) - Math.min(r, g, b) < 45,
+};
+function parseHist(byColor) {
+  const all = Object.values(byColor).map(d => d.text).join("\n"), N = norm(fixO(all));
+  let ev = [];
+  for (const [color, data] of Object.entries(byColor)) for (const t of lineTexts(data)) {
     const st = stamp(t), M = norm(t);
     if (!st || /ILEGAL|EMITIDO|ISSUE|EXECUTING/.test(M)) continue;
-    if (/CERRADO/.test(M) && /REALIZADO|CAMBIO|ESTADO/.test(M)) ev.push({ ...st, close: true });
-    else if (/ABIERTO/.test(M)) ev.push({ ...st, close: false });
+    if (color === "azul" && /ABIERT/.test(M)) ev.push({ ...st, close: false });
+    else if (color === "verde" && !/ABIERT/.test(M)) ev.push({ ...st, close: true, auto: true });
+    else if (color === "blanco" && /REALIZADO|CAMBIO/.test(M) && /CERRAD|ABIERT/.test(M)) ev.push({ ...st, close: /CERRAD/.test(M) });
   }
+  // Solo el día de la falla: el de hoy si sale, si no el más nuevo de la foto
+  const today = new Date(), hoy = `${pad(today.getDate())}/${pad(today.getMonth() + 1)}/${today.getFullYear()}`;
+  const day = ev.some(e => e.s.startsWith(hoy)) ? hoy : (ev.slice().sort((a, b) => b.n - a.n)[0] || { s: "" }).s.slice(0, 10);
+  ev = ev.filter(e => e.s.startsWith(day)).sort((a, b) => a.n - b.n);
+  // La falla es la última racha de eventos (recierres a segundos); la apertura es la primera de esa racha
+  let i = ev.length - 1;
+  while (i > 0 && ev[i].n - ev[i - 1].n <= 5 * 60e3) i--;
+  const racha = ev.slice(i), first = racha.find(e => !e.close), last = racha.at(-1);
   const point = /(\d{2}[A-Z]{5,}\d{1,3}\s*-\s*\d{2}\s*_\s*[A-Z0-9]{3,8}?)(?=\s*-|\s|$)/.exec(N);
   const tag = point ? point[1].replace(/\s/g, "").split("_").pop() : "";
-  const last = ev.slice().sort((a, b) => b.n - a.n)[0];
-  const opens = ev.filter(e => !e.close).sort((a, b) => a.n - b.n);
+  const closed = !!(first && last.close);
   return {
     point: point ? point[1].replace(/\s/g, "") : "", tag, rec: /RECONECTADOR/.test(N) || /R\d{3}/.test(tag),
-    open: opens[0] ? opens[0].s : "", closed: !!(last && last.close), close: last && last.close ? last.s : "",
-    score: ev.length ? 1 + !!point : 0,
+    open: first ? first.s : "", closed, close: closed ? last.s : "", auto: closed && !!last.auto,
+    score: first ? 2 : ev.length ? 1 : 0,
   };
 }
-// Disparos: la primera hora del equipo y las fases que dispararon en esos segundos
-function parseTrips(data, tag) {
-  let rows = lineTexts(data).map(t => ({ t, M: norm(fixO(t)), st: stamp(t) })).filter(r => r.st && /DISPAR|-\s*D[A-Z0-9]/.test(r.M));
-  // El lector a veces cambia un carácter del código (8R020 → 8R070, 8ROZ0): se acepta una diferencia
-  const T = squash(tag || "").replace(/O/g, "0");
-  const hasTag = M => { const q = squash(M).replace(/O/g, "0");
-    for (let i = 0; i + T.length <= q.length; i++) { let d = 0; for (let j = 0; j < T.length && d < 2; j++) d += q[i + j] !== T[j]; if (d < 2) return true; }
-    return false; };
-  if (T && rows.some(r => hasTag(r.M))) rows = rows.filter(r => hasTag(r.M));
-  if (!rows.length) return { score: 0 };
-  const first = rows.reduce((a, b) => (b.st.n < a.st.n ? b : a));
-  const fases = new Set();
-  for (const r of rows) if (r.st.n - first.st.n <= 5000) {
-    for (const m of r.M.matchAll(/FASE\s*([ABC])(?![A-Z])|-\s*DF([ABC])(?![A-Z])/g)) fases.add(m[1] || m[2]);
-    if (/FASE\s*N(?![A-Z])|NEUTRO|TIERRA|-\s*DFN(?![A-Z])/.test(r.M)) fases.add("N");
-  }
-  return { open: first.st.s, fases: [...fases].sort().join(""), score: 1 + !!fases.size };
+// Foto del historial separada por color: lo de ese color queda negro sobre blanco
+function prepColor(src, test, W = 2200) {
+  W = Math.min(W, src.width); const H = Math.round(src.height * W / src.width);
+  const c = document.createElement("canvas"); c.width = W; c.height = H;
+  const g = c.getContext("2d", { willReadFrequently: true }); g.drawImage(src, 0, 0, W, H);
+  const id = g.getImageData(0, 0, W, H), d = id.data;
+  for (let i = 0; i < d.length; i += 4) d[i] = d[i + 1] = d[i + 2] = test(d[i], d[i + 1], d[i + 2]) ? 0 : 255;
+  g.putImageData(id, 0, 0); return c;
 }
 // Corrientes: columnas de 3 o 4 valores "34.23 A"; se toman los 3 primeros (A, B, C)
 function parseAmps(data, eqName) {
@@ -105,19 +111,6 @@ function parseAmps(data, eqName) {
   return { groups: gs, score: gs.length ? 1 : 0 };
 }
 
-// Foto lista para el lector: gris, hasta 2200 px y, si la pantalla es oscura (SCADA), invertida
-function prep(src) {
-  const W = Math.min(2200, src.width), H = Math.round(src.height * W / src.width);
-  const t = document.createElement("canvas"); t.width = 80; t.height = Math.max(1, Math.round(80 * H / W));
-  const tg = t.getContext("2d"); tg.drawImage(src, 0, 0, t.width, t.height);
-  const d = tg.getImageData(0, 0, t.width, t.height).data;
-  let sum = 0; for (let i = 0; i < d.length; i += 4) sum += d[i] * .3 + d[i + 1] * .59 + d[i + 2] * .11;
-  const c = document.createElement("canvas"); c.width = W; c.height = H;
-  const g = c.getContext("2d");
-  g.filter = "grayscale(1)" + (sum / (d.length / 4) < 110 ? " invert(1)" : "");
-  g.drawImage(src, 0, 0, W, H);
-  return c;
-}
 // Foto 1 (pantalla clara, letras grandes): blanco y negro a 3000 px, así se leen todas las pestañas INC
 function prepBW(src, W = 3000) {
   W = Math.min(W, src.width); const H = Math.round(src.height * W / src.width);
@@ -169,14 +162,21 @@ function readSlot(f, n, file) {
     for (const rot of rots) {
       f.read[n] = "Leyendo la foto…"; if (cur === f) drawSlots();
       const src = await orient(file, rot);
-      const pic = n === 0 ? prepBW(src) : n === 3 ? prepGreen(src) : prep(src);
-      if (n === 3) await w.setParameters({ tessedit_pageseg_mode: "11" });
-      let data;
-      try { data = (await w.recognize(pic)).data; } finally { if (n === 3) await w.setParameters({ tessedit_pageseg_mode: "3" }); }
-      const r = n === 0 ? parseInc(data) : n === 1 ? parseHist(data) : n === 2 ? parseTrips(data, f.hist && f.hist.tag) : parseAmps(data, f.eq && f.eq.nombre);
-      if (n === 0 && r.incs.length && !r.clientes) { r.clientes = await readClientes(w, src, pic, data); r.score += !!r.clientes; }
+      let data, r;
+      if (n === 1) {
+        const byColor = {};
+        for (const [k, test] of Object.entries(HIST_COLORS)) byColor[k] = (await w.recognize(prepColor(src, test))).data;
+        r = parseHist(byColor);
+        data = { text: Object.entries(byColor).map(([k, d]) => `[${k}]\n${d.text}`).join("\n") };
+      } else {
+        const pic = n === 0 ? prepBW(src) : prepGreen(src);
+        if (n === 2) await w.setParameters({ tessedit_pageseg_mode: "11" });
+        try { data = (await w.recognize(pic)).data; } finally { if (n === 2) await w.setParameters({ tessedit_pageseg_mode: "3" }); }
+        r = n === 0 ? parseInc(data) : parseAmps(data, f.eq && f.eq.nombre);
+        if (n === 0 && r.incs.length && !r.clientes) { r.clientes = await readClientes(w, src, pic, data); r.score += !!r.clientes; }
+      }
       if (!best || r.score > best.r.score) best = { r, data };
-      if (r.score >= (n === 3 ? 1 : 2)) break;
+      if (r.score >= (n === 2 ? 1 : 2)) break;
     }
     applySlot(f, n, best.r, best.data.text);
   }).catch(() => { f.read[n] = "No se pudo leer. Prueba otra foto más cercana y derecha."; if (cur === f) drawSlots(); });
@@ -189,30 +189,24 @@ function applySlot(f, n, r, text) {
     f.read[n] = r.score ? `INC ${f.inc || "?"} · ${f.clientes || "?"} clientes` : "No encontré la INC ni los clientes.";
   } else if (n === 1) {
     f.hist = r;
-    // La apertura tiene que ser antes del último cierre; si no, se espera la hora de la foto de disparos
-    const before = r.open && (!r.close || stamp(r.open).n < stamp(r.close).n);
-    if (before && (!f.des || stamp(r.open).n < stamp(f.des).n)) f.des = r.open;
-    if (r.score) { f.estado = r.closed ? "CERRADO" : "ABIERTO"; f.con = r.close; }
+    if (r.open) { f.des = r.open; f.estado = r.closed ? "CERRADO" : "ABIERTO"; f.con = r.close; }
     // Equipo ya conocido por su código del SCADA
     const known = r.point && store.get("codigos", {})[r.point];
     if (known && !f.eq) f.eq = eqFind(known[0], known[1]);
-    f.read[n] = r.score ? (r.closed ? `Último cierre ${r.close.slice(11)}` : "Sin cierre: queda abierto") + (r.tag ? ` · ${r.tag}` : "") : "No encontré eventos de apertura o cierre.";
-  } else if (n === 2) {
-    if (r.open && !(f.con && stamp(r.open).n >= stamp(f.con).n)) f.des = r.open;
-    if (r.fases) f.fases = r.fases;
-    f.read[n] = r.score ? `Disparo ${r.open.slice(11)}${r.fases ? " · fase " + r.fases : ""}` : "No encontré disparos.";
+    f.read[n] = !r.open ? "No encontré la apertura (fila azul). Escribe las horas abajo." :
+      `Abrió ${r.open.slice(11)} · ` + (r.closed ? `${r.auto ? "reconexión automática" : "cerró el operador"} ${r.close.slice(11)}` : "sin cierre: queda abierto") + (r.tag ? ` · ${r.tag}` : "");
   } else {
     // La lectura del unifilar es poco segura: se ofrece para tocarla, no se llena sola
     f.amps = r.groups.map(g => g.vals);
     f.read[n] = r.score ? "Revisa las corrientes abajo: toca la lectura si coincide, o escríbelas." : "No pude leer las corrientes: escríbelas abajo.";
   }
-  if (n === 3 && !f.eq) guessEquipo(f);
+  if (n === 2 && !f.eq) guessEquipo(f);
   saveAll();
   if (cur === f) { drawSlots(); fillEditor(); }
 }
 // Equipo por su nombre en cualquiera de las fotos (unifilar: "REC. POMONA", "RIO VERDE - 93")
 function guessEquipo(f) {
-  const all = (f.raw || [])[3] || "", sq = squash(all), words = norm(all);
+  const all = (f.raw || [])[2] || "", sq = squash(all), words = norm(all);
   const hits = EQUIPOS.filter(e => e.k.length >= 5 && sq.includes(e.k));
   hits.sort((a, b) => (b.tipo === "rec" && /REC/.test(words)) - (a.tipo === "rec" && /REC/.test(words)) || b.k.length - a.k.length);
   f.eqHits = hits.slice(0, 4).map(e => [e.tipo, e.nombre]);
