@@ -63,6 +63,9 @@ function parseHist(byColor) {
     // El lector a veces parte la fila en dos: se le suman las líneas siguientes que no tienen fecha
     let M = norm(t);
     for (let k = j + 1; k < Math.min(ls.length, j + 3) && !stamp(ls[k]); k++) M += " " + norm(ls[k]);
+    // Blanco sin mensaje en su línea: el lector a veces pone la columna Message unas líneas antes
+    if (color === "blanco" && !/CERRAD|ABIERT/.test(M))
+      for (let k = j - 1; k >= Math.max(0, j - 4) && !stamp(ls[k]); k--) if (/COMANDO|REALIZ/.test(norm(ls[k]))) { M += " " + norm(ls[k]); break; }
     if (/EMITIDO|ISSUE|EXECUTING/.test(M)) return;
     // Azul es siempre estado anormal: si no dice "Ilegal", es la apertura aunque la palabra salga mal leída
     if (color === "azul") { if (/ABIER|BIERT/.test(M) || !/LEGAL/.test(M)) ev.push({ ...st, close: false }); return; }
@@ -71,10 +74,12 @@ function parseHist(byColor) {
     // El mensaje blanco a veces sale cortado ("Comando discreto Cerrado - Re")
     else if (color === "blanco" && /REALIZ|CAMBIO|COMANDO|DISCRETO/.test(M) && /CERRAD|ABIERT/.test(M)) ev.push({ ...st, close: /CERRAD/.test(M) });
   });
-  // Solo el día de la falla: el de la apertura más nueva (si no hay apertura, el evento más nuevo)
+  // Solo el día de la falla: hoy (la foto se toma justo después); si no sale hoy, el de la apertura más nueva
+  const t = new Date(), hoy = `${pad(t.getDate())}/${pad(t.getMonth() + 1)}/${t.getFullYear()}`;
   const newest = list => list.slice().sort((a, b) => b.n - a.n)[0];
-  const day = (newest(ev.filter(e => !e.close)) || newest(ev) || { s: "" }).s.slice(0, 10);
-  ev = ev.filter(e => e.s.startsWith(day)).sort((a, b) => a.n - b.n);
+  const day = ev.some(e => e.s.startsWith(hoy)) ? hoy : (newest(ev.filter(e => !e.close)) || newest(ev) || { s: "" }).s.slice(0, 10);
+  // Misma hora (apertura y cierre en el mismo instante): el cierre va después
+  ev = ev.filter(e => e.s.startsWith(day)).sort((a, b) => a.n - b.n || a.close - b.close);
   // La falla es la última racha: recierres a segundos y el cierre final, aunque el operador tarde.
   // Empieza en la apertura que vino después de un cierre de más de 5 minutos antes
   let i = ev.length - 1;
