@@ -21,7 +21,10 @@ const store = {
   get(k, d) { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } },
   set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} },
 };
-let fallas = store.get("fallas", []);
+// Lo que fer pone casi siempre en la bitácora
+const DEFAULTS = { origen: "INP - Internas - No Programada", causa: "Otras", subcausa: "Desconocidas" };
+// Las fallas ya enviadas se borran solas del celular a los 7 días
+let fallas = store.get("fallas", []).filter(f => !f.enviada || Date.now() - Date.parse(f.enviada) < 7 * 864e5);
 let cur = null;           // falla abierta en el editor
 const shots = {};         // fotos de la sesión: id -> [url…] (no se guardan, pesan mucho)
 const saveAll = () => store.set("fallas", fallas.slice(-60));
@@ -229,21 +232,14 @@ function demandaKW(f) {
   return { kw, note: `Del Excel de demanda: ${row[1]}, ${dias[day]} a las ${m[4]}:${m[5]} ≈ ${kw} kW.` };
 }
 
-// ---------- descripción y fila ----------
-function describe(f) {
-  if (!f.eq || !f.des) return "";
-  const t = f.des.slice(11), falla = "falla" + (f.fases ? " fase " + f.fases : "");
-  const fin = f.estado === "CERRADO" && f.con ? ` y se cierra a las ${f.con.slice(11)}.` : " y queda abierto.";
-  return f.eq.tipo === "rec"
-    ? `A las ${t}, se abre por ${falla} el reconectador ${f.eq.nombre}${fin}`
-    : `A las ${t}, se desconecta por ${falla} el primario ${f.eq.nombre} de la subestación ${f.eq.se}${fin}`;
-}
+// ---------- fila ----------
 function rowOf(f) {
   const rec = f.eq && f.eq.tipo === "rec", cerrado = f.estado === "CERRADO";
   const amps = f.ia || f.ib || f.ic;
   return ["", f.inc || "", f.clientes || "", cerrado ? "CERRADO" : "ABIERTO", f.des || "", cerrado ? f.con || "" : "", "",
     f.eq && !rec ? f.eq.se : "", f.eq && !rec ? f.eq.nombre : "", f.ia || "", f.ib || "", f.ic || "", amps ? "" : f.kw || "",
-    f.origen || "", f.causa || "", f.subcausa || "", f.txt || "", f.fases ? "Fase " + f.fases : "", rec ? f.eq.nombre : "", f.id];
+    // La descripción va vacía: la bitácora la arma sola con los datos del formulario
+    f.origen || "", f.causa || "", f.subcausa || "", "", f.fases ? "Fase " + f.fases : "", rec ? f.eq.nombre : "", f.id];
 }
 
 // ---------- pantallas ----------
@@ -257,7 +253,7 @@ $("fal-url").value = store.get("hoja", "");
 $("fal-url").addEventListener("input", () => store.set("hoja", $("fal-url").value.trim()));
 $("fal-new").onclick = () => {
   const now = new Date();
-  cur = { id: "F" + now.getTime().toString(36).toUpperCase(), creada: now.toISOString(), estado: "ABIERTO" };
+  cur = { id: "F" + now.getTime().toString(36).toUpperCase(), creada: now.toISOString(), estado: "ABIERTO", ...DEFAULTS };
   fallas.push(cur); saveAll();
   history.pushState({ v: "fed" }, ""); show("fed");
 };
@@ -336,8 +332,6 @@ function fillEditor() {
   if (document.activeElement !== $("fx-kw")) $("fx-kw").value = amps ? "" : f.kw || "";
   $("fx-kw").disabled = !!amps;
   $("fx-kw-n").textContent = amps ? "Con corrientes la bitácora calcula los kW." : d ? d.note : f.eq && f.eq.tipo === "rec" ? "Reconectador sin foto de cargas: escribe los kW." : "";
-  if (!f.txtEdited) f.txt = describe(f);
-  if (document.activeElement !== $("fx-txt")) $("fx-txt").value = f.txt || "";
   for (const [k, id] of [["origen", "fx-l-ori"], ["causa", "fx-l-cau"], ["subcausa", "fx-l-sub"]])
     $(id).innerHTML = store.get("usados-" + k, []).map(v => `<option value="${v.replace(/"/g, "&quot;")}">`).join("");
   $("fx-raw").textContent = (f.raw || []).map((t, i) => t ? `--- Foto ${i + 1} ---\n${t}` : "").filter(Boolean).join("\n");
@@ -346,7 +340,6 @@ function changed() { cur.enviada = false; saveAll(); fillEditor(); }
 for (const [k, id] of Object.entries(FX)) $(id).addEventListener("input", () => {
   cur[k] = $(id).value.trim(); if (k === "kw") cur.kwManual = !!cur.kw; changed();
 });
-$("fx-txt").addEventListener("input", () => { cur.txt = $("fx-txt").value; cur.txtEdited = !!cur.txt; cur.enviada = false; saveAll(); });
 
 // Buscador de equipo: alimentadores (con su S/E) y reconectadores
 function suggestEq() {
@@ -381,9 +374,8 @@ function problems(f) {
   const p = [];
   if (!/^\d{10,11}$/.test(f.inc || "")) p.push("la incidencia");
   if (!f.eq) p.push("el equipo");
-  if (!stamp(f.des || "")) p.push("la hora de desconexión");
-  if (f.estado === "CERRADO" && !stamp(f.con || "")) p.push("la hora de conexión");
-  else if (f.estado === "CERRADO" && stamp(f.des || "") && stamp(f.des).n >= stamp(f.con).n) p.push("la desconexión (debe ser antes del cierre)");
+  // Las horas pueden faltar (se llenan a mano en la bitácora), pero si están deben tener sentido
+  if (f.estado === "CERRADO" && stamp(f.des || "") && stamp(f.con || "") && stamp(f.des).n >= stamp(f.con).n) p.push("la desconexión (debe ser antes del cierre)");
   return p;
 }
 $("fx-send").onclick = async () => {
