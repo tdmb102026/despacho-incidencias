@@ -222,10 +222,10 @@ function demandaKW(f) {
   const row = DEMANDA[f.eq.i];
   if (!m || !row) return null;
   const day = (new Date(+m[3], m[2] - 1, +m[1]).getDay() + 6) % 7; // lunes = 0
-  const i = day * 24 + +m[4], v0 = row[2][i], v1 = row[2][(i + 1) % 168];
-  const kw = Math.round((v0 + (v1 - v0) * (+m[5] + m[6] / 60) / 60) * 1000);
-  const dias = ["lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo"];
-  return { kw, note: `Del Excel de demanda: ${row[1]}, ${dias[day]} a las ${m[4]}:${m[5]} ≈ ${kw} kW.` };
+  // El valor de la tabla en la columna de esa hora (09:53 → columna 9), igual que se ve en el Excel
+  const kw = Math.round(row[2][day * 24 + +m[4]] * 1000);
+  const dias = ["LUNES", "MARTES", "MIÉRCOLES", "JUEVES", "VIERNES", "SÁBADO", "DOMINGO"];
+  return { kw, note: `Del Excel de demanda: ${row[1]}, ${dias[day]} (falla del ${m[1]}/${m[2]}), columna ${+m[4]} = ${kw} kW.` };
 }
 
 // ---------- fila ----------
