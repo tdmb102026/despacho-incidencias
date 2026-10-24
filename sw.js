@@ -5,9 +5,10 @@ const FILES = ["./", "index.html", "manifest.webmanifest", "fallas.js?v=29", "da
   "ocr/tesseract.min.js", "ocr/worker.min.js", "ocr/worker-wrap.js",
   "ocr/tesseract-core-simd-lstm.wasm.js", "ocr/tesseract-core-lstm.wasm.js", "ocr/lang/spa.traineddata.gz.wasm"];
 self.addEventListener("install", e => e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES.map(u => new Request(u, { cache: "reload" })))).then(() => self.skipWaiting())));
-self.addEventListener("activate", e => e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== CACHE).map(k => caches.delete(k)))).then(() => self.clients.claim())));
+self.addEventListener("activate", e => e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k.startsWith("despacho-v") && k !== CACHE).map(k => caches.delete(k)))).then(() => self.clients.claim())));
 self.addEventListener("fetch", e => {
-  if (e.request.method !== "GET") return;
+  // La app con IA (carpeta ia/) tiene su propio guardado: esta no la toca
+  if (e.request.method !== "GET" || new URL(e.request.url).pathname.includes("/ia/")) return;
   // La página: primero la red (para recibir mejoras), si no hay señal la guardada. El resto: lo guardado.
   if (e.request.mode === "navigate") e.respondWith(fetch(e.request).then(r => { caches.open(CACHE).then(c => c.put("index.html", r.clone())); return r; }).catch(() => caches.match("index.html")));
   else e.respondWith(caches.match(e.request).then(r => r || fetch(e.request)));
