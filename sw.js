@@ -1,7 +1,7 @@
 // Guarda la app y el lector en el celular para que abra rápido y sin señal.
 // Los archivos se bajan sin la caché del navegador, y fallas.js lleva ?v= para que cada versión traiga el suyo.
-const CACHE = "despacho-v24";
-const FILES = ["./", "index.html", "manifest.webmanifest", "fallas.js?v=24", "datos/fallas.js?v=24", "icons/icon-192.png", "icons/icon-512.png",
+const CACHE = "despacho-v25";
+const FILES = ["./", "index.html", "manifest.webmanifest", "fallas.js?v=25", "datos/fallas.js?v=25", "icons/icon-192.png", "icons/icon-512.png",
   "ocr/tesseract.min.js", "ocr/worker.min.js", "ocr/worker-wrap.js",
   "ocr/tesseract-core-simd-lstm.wasm.js", "ocr/tesseract-core-lstm.wasm.js", "ocr/lang/spa.traineddata.gz.wasm"];
 self.addEventListener("install", e => e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES.map(u => new Request(u, { cache: "reload" })))).then(() => self.skipWaiting())));
