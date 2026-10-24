@@ -1,9 +1,10 @@
 // Guarda la app y el lector en el celular para que abra rápido y sin señal.
-const CACHE = "despacho-v17";
-const FILES = ["./", "index.html", "manifest.webmanifest", "fallas.js", "datos/fallas.js", "icons/icon-192.png", "icons/icon-512.png",
+// Los archivos se bajan sin la caché del navegador, y fallas.js lleva ?v= para que cada versión traiga el suyo.
+const CACHE = "despacho-v18";
+const FILES = ["./", "index.html", "manifest.webmanifest", "fallas.js?v=18", "datos/fallas.js?v=18", "icons/icon-192.png", "icons/icon-512.png",
   "ocr/tesseract.min.js", "ocr/worker.min.js", "ocr/worker-wrap.js",
   "ocr/tesseract-core-simd-lstm.wasm.js", "ocr/tesseract-core-lstm.wasm.js", "ocr/lang/spa.traineddata.gz.wasm"];
-self.addEventListener("install", e => e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES)).then(() => self.skipWaiting())));
+self.addEventListener("install", e => e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES.map(u => new Request(u, { cache: "reload" })))).then(() => self.skipWaiting())));
 self.addEventListener("activate", e => e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== CACHE).map(k => caches.delete(k)))).then(() => self.clients.claim())));
 self.addEventListener("fetch", e => {
   if (e.request.method !== "GET") return;
