@@ -361,7 +361,9 @@ function fillTime(k) {
   [1, 2, 3].forEach(i => { ins[i].value = v ? v[i + 3] : ""; });
 }
 
-// Micrófono para dictar la incidencia o los clientes ("uno uno cero tres…" o "110 310…")
+// Micrófono para dictar números ("uno uno cero tres…" o "110 310…"): aquí INC y clientes,
+// y en Despacho de incidencias la INC y el teléfono
+const MIC_OK = { "fx-inc": x => /^110\d{7,8}$/.test(x), "f-inc": x => x.length >= 6, "f-tel": x => /^09\d{8}$/.test(x) };
 const Speech = window.SpeechRecognition || window.webkitSpeechRecognition;
 const DIGITOS = { cero: 0, uno: 1, una: 1, dos: 2, tres: 3, cuatro: 4, cinco: 5, seis: 6, siete: 7, ocho: 8, nueve: 9 };
 for (const b of document.querySelectorAll("[data-mic]")) {
@@ -372,11 +374,13 @@ for (const b of document.querySelectorAll("[data-mic]")) {
     rec.lang = "es-EC"; rec.interimResults = false; rec.maxAlternatives = 3;
     rec.onresult = e => {
       const alts = [...e.results[0]].map(a => norm(a.transcript).toLowerCase().replace(/[a-z]+/g, w => DIGITOS[w] ?? " ").replace(/\D/g, ""));
-      const n = alts.find(x => b.dataset.mic !== "fx-inc" || /^110\d{7,8}$/.test(x)) || alts[0];
+      let n = alts.find(MIC_OK[b.dataset.mic] || Boolean) || alts[0];
+      // Despacho guarda solo los 6 últimos dígitos de la INC
+      if (b.dataset.mic === "f-inc") n = n.slice(-6);
       if (n) { inp.value = n; inp.dispatchEvent(new Event("input")); }
     };
     rec.onend = () => b.setAttribute("aria-pressed", "false");
-    rec.onerror = () => note("No pude usar el micrófono. Revisa el permiso del navegador.");
+    rec.onerror = e => { if (e.error !== "no-speech" && e.error !== "aborted") alert("No pude usar el micrófono. Revisa el permiso del navegador."); };
     b.setAttribute("aria-pressed", "true"); rec.start();
   };
 }
