@@ -33,7 +33,7 @@ const fixO = s => s.replace(/(?<=\d)[OoQ]|[OoQ](?=\d)/g, "0");
 const pad = x => String(x).padStart(2, "0");
 // Fecha y hora del SCADA: 23/10/2026 9:53:23,003 → 23/10/2026 09:53:23 (a veces se lee "2310/2026")
 function stamp(line) {
-  const m = /(\d{1,2})\s*\/?\s*(\d{1,2})\s*\/\s*(\d{4})\s+(\d{1,2})\s*[:.]\s*(\d{2})\s*[:.]\s*(\d{2})/.exec(fixO(line));
+  const m = /(\d{1,2})\s*\/?\s*(\d{1,2})\s*[\/7]\s*(\d{4})\s+(\d{1,2})\s*[:.]\s*(\d{2})\s*[:.]\s*(\d{2})/.exec(fixO(line).replace(/(?<=\d)[lI|!]|[lI|!](?=\d)/g, "1"));
   if (!m) return null;
   return { s: `${pad(m[1])}/${pad(m[2])}/${m[3]} ${pad(m[4])}:${m[5]}:${m[6]}`, n: Date.UTC(+m[3], m[2] - 1, +m[1], +m[4], +m[5], +m[6]) };
 }
@@ -57,17 +57,23 @@ const HIST_COLORS = {
 function parseHist(byColor) {
   const all = Object.values(byColor).map(d => d.text).join("\n"), N = norm(fixO(all));
   let ev = [];
-  for (const [color, data] of Object.entries(byColor)) for (const t of lineTexts(data)) {
-    const st = stamp(t), M = norm(t);
-    if (!st || /ILEGAL|EMITIDO|ISSUE|EXECUTING/.test(M)) continue;
-    if (color === "azul" && /ABIERT/.test(M)) ev.push({ ...st, close: false });
+  for (const [color, data] of Object.entries(byColor)) lineTexts(data).forEach((t, j, ls) => {
+    const st = stamp(t);
+    if (!st) return;
+    // El lector a veces parte la fila en dos: se le suman las líneas siguientes que no tienen fecha
+    let M = norm(t);
+    for (let k = j + 1; k < Math.min(ls.length, j + 3) && !stamp(ls[k]); k++) M += " " + norm(ls[k]);
+    if (/EMITIDO|ISSUE|EXECUTING/.test(M)) return;
+    // Azul es siempre estado anormal: si no dice "Ilegal", es la apertura aunque la palabra salga mal leída
+    if (color === "azul") { if (/ABIER|BIERT/.test(M) || !/LEGAL/.test(M)) ev.push({ ...st, close: false }); return; }
+    if (/ILEGAL/.test(M)) return;
     else if (color === "verde" && !/ABIERT/.test(M)) ev.push({ ...st, close: true, auto: true });
     // El mensaje blanco a veces sale cortado ("Comando discreto Cerrado - Re")
     else if (color === "blanco" && /REALIZ|CAMBIO|COMANDO|DISCRETO/.test(M) && /CERRAD|ABIERT/.test(M)) ev.push({ ...st, close: /CERRAD/.test(M) });
-  }
-  // Solo el día de la falla: el de hoy si sale, si no el más nuevo de la foto
-  const today = new Date(), hoy = `${pad(today.getDate())}/${pad(today.getMonth() + 1)}/${today.getFullYear()}`;
-  const day = ev.some(e => e.s.startsWith(hoy)) ? hoy : (ev.slice().sort((a, b) => b.n - a.n)[0] || { s: "" }).s.slice(0, 10);
+  });
+  // Solo el día de la falla: el de la apertura más nueva (si no hay apertura, el evento más nuevo)
+  const newest = list => list.slice().sort((a, b) => b.n - a.n)[0];
+  const day = (newest(ev.filter(e => !e.close)) || newest(ev) || { s: "" }).s.slice(0, 10);
   ev = ev.filter(e => e.s.startsWith(day)).sort((a, b) => a.n - b.n);
   // La falla es la última racha: recierres a segundos y el cierre final, aunque el operador tarde.
   // Empieza en la apertura que vino después de un cierre de más de 5 minutos antes
@@ -76,7 +82,7 @@ function parseHist(byColor) {
   const racha = ev.slice(i), first = racha.find(e => !e.close), last = racha.at(-1);
   const point = /(\d{2}[A-Z]{5,}\d{1,3}\s*-\s*\d{2}\s*_\s*[A-Z0-9]{3,12}?)(?=\s*-|\s|$)/.exec(N);
   const tag = point ? point[1].replace(/\s/g, "").split("_").pop() : "";
-  const closed = !!(first && last.close);
+  const closed = !!(last && last.close);
   return {
     point: point ? point[1].replace(/\s/g, "") : "", tag, rec: /RECONECTADOR/.test(N) || /R\d{3}/.test(tag),
     open: first ? first.s : "", closed, close: closed ? last.s : "", auto: closed && !!last.auto,
@@ -191,11 +197,12 @@ function applySlot(f, n, r, text) {
     f.read[n] = r.score ? `INC ${f.inc || "?"} · ${f.clientes || "?"} clientes` : "No encontré la INC ni los clientes.";
   } else if (n === 1) {
     f.hist = r;
-    if (r.open) { f.des = r.open; f.estado = r.closed ? "CERRADO" : "ABIERTO"; f.con = r.close; }
+    if (r.open) f.des = r.open;
+    if (r.open || r.closed) { f.estado = r.closed ? "CERRADO" : "ABIERTO"; f.con = r.close; }
     // Equipo ya conocido por su código del SCADA
     const known = r.point && store.get("codigos", {})[r.point];
     if (known && !f.eq) f.eq = eqFind(known[0], known[1]);
-    f.read[n] = !r.open ? "No encontré la apertura (fila azul). Escribe las horas abajo." :
+    f.read[n] = !r.open ? "No encontré la apertura (fila azul). Escribe la hora abajo." + (r.closed ? ` Cierre ${r.close.slice(11)}.` : "") :
       `Abrió ${r.open.slice(11)} · ` + (r.closed ? `${r.auto ? "reconexión automática" : "cerró el operador"} ${r.close.slice(11)}` : "sin cierre: queda abierto") + (r.tag ? ` · ${r.tag}` : "");
   } else {
     // La lectura del unifilar es poco segura: se ofrece para tocarla, no se llena sola
