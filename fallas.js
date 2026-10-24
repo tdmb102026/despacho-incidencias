@@ -163,6 +163,7 @@ async function readClientes(w, src, pic, data) {
 }
 let readQueue = Promise.resolve(), digitsReady = null;
 function readSlot(f, n, file) {
+  if (modoIA) return readSlotIA(f, n, file);
   const id = f.id;
   (shots[id] = shots[id] || [])[n] = URL.createObjectURL(file);
   f.read = f.read || {}; f.read[n] = "Esperando al lector…";
@@ -256,7 +257,7 @@ function showFal(v) {
   else if (!cur) { history.back(); return; }
   else { drawSlots(); fillEditor(); }
 }
-$("go-fal").onclick = () => { history.pushState({ v: "fal" }, ""); show("fal"); getWorker().catch(() => {}); };
+$("go-fal").onclick = () => { history.pushState({ v: "fal" }, ""); show("fal"); if (!modoIA) getWorker().catch(() => {}); };
 $("fal-url").value = store.get("hoja", "");
 $("fal-url").addEventListener("input", () => store.set("hoja", $("fal-url").value.trim()));
 $("fal-new").onclick = () => {

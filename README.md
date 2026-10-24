@@ -6,10 +6,9 @@ y arma el mensaje para el grupo de WhatsApp que corresponde.
 
 Para instalar: abrir el enlace de GitHub Pages en Chrome → menú ⋮ → "Instalar app".
 
-## Versión con IA (carpeta `ia/`)
+## Con IA o sin IA
 
-La misma app, pero las fotos las lee Claude (IA de Anthropic) en vez del OCR del celular: más preciso con la trama de la
-pantalla, los decimales y las pestañas INC, pero necesita internet y una clave de API de Anthropic (se pega una vez en
-«Clave de la IA», en el inicio, y queda solo en ese celular). Se abre en `…/despacho-incidencias/ia/` y se instala como
-otra app («Despacho IA»). Las fallas internas de esta versión se guardan aparte; el enlace de la hoja se comparte.
-`ia/claude-sdk.js` es el SDK oficial `@anthropic-ai/sdk` 1.3.0 empaquetado para el navegador con esbuild.
+Al abrir la app se elige el modo. **Sin IA** es el lector del celular de siempre. **Con IA** pide una contraseña y
+manda las fotos a Claude (Anthropic) a través de un Apps Script de Google que guarda la clave de API, revisa las
+contraseñas de los operadores y cuenta las fotos de cada uno (`ia-servidor/`, pasos en `ia-servidor/LEEME.md`).
+Los campos, el mensaje de WhatsApp y la fila de la bitácora son los mismos en los dos modos.
