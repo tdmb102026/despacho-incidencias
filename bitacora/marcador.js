@@ -49,16 +49,19 @@
 
   let c = elegida.fila;
   if (!c) {
-    const linea = elegida.texto.split(/\r?\n/).find(l => l.split("\t").some(esFecha));
+    const linea = elegida.texto.split(/\r?\n/).find(l => l.split("\t").some(esFecha)) || elegida.texto.split(/\r?\n/).find(l => l.split("\t").length >= 15);
     if (!linea) return void alert("No reconozco la fila. Haz clic en el NÚMERO de la fila (a la izquierda) para seleccionarla entera, Ctrl+C y vuelve a intentar.");
     const r = linea.split("\t").map(v => v.replace(/^"|"$/g, "").trim());
-    c = Array(Math.max(0, 4 - r.findIndex(esFecha))).fill("").concat(r);
+    // Se alinea por la fecha de desconexión; sin fecha, se asume la fila entera desde Subido
+    const iF = r.findIndex(esFecha);
+    c = iF >= 0 ? Array(Math.max(0, 4 - iF)).fill("").concat(r) : r;
   }
   c = c.map(v => String(v == null ? "" : v).trim());
   const F = { incidencia: c[1], clientes: c[2], estado: c[3], desconexion: c[4], conexion: c[5], se: c[7], alimentador: c[8],
     ia: c[9], ib: c[10], ic: c[11], kw: c[12], origen: c[13], causa: c[14], subcausa: c[15], descripcion: c[16],
     protecciones: c[17] || "", equipo: c[18] || "", id: c[19] || "" };
-  if (!esFecha(F.desconexion) || !(F.alimentador || F.equipo)) return void alert("La fila no tiene fecha de desconexión, ni alimentador o reconectador. ¿Copiaste una fila de datos?");
+  if (!(F.alimentador || F.equipo)) return void alert("La fila no tiene alimentador ni reconectador. ¿Copiaste una fila de datos?");
+  if (!esFecha(F.desconexion)) avisos.push("Sin hora de desconexión: escríbela a mano");
   const form = document.querySelector("app-bitacora-fallas-internas form");
   if (!form) return void alert("Abre primero el formulario de registro nuevo de Fallas internas EEASA.");
 
@@ -154,12 +157,11 @@
     escribe(el, el && el.type === "number" ? v : v.replace(".", ","));
     avisos.push("Sin corrientes: puse " + F.kw + " kW en Resultado directo");
   } else avisos.push("Sin corrientes ni kW: escribe la carga a mano");
-  await lista(control("origen")?.querySelector(".p-dropdown"), F.origen, "Origen / tipo");
-  await lista(control("causaCodigo")?.querySelector(".p-dropdown"), F.causa, "Causa");
-  await lista(control("subcausaCodigo")?.querySelector(".p-dropdown"), F.subcausa, "Subcausa");
+  await lista(control("origen")?.querySelector(".p-dropdown"), F.origen || "INP - Internas - No Programada", "Origen / tipo");
+  await lista(control("causaCodigo")?.querySelector(".p-dropdown"), F.causa || "Otras", "Causa");
+  await lista(control("subcausaCodigo")?.querySelector(".p-dropdown"), F.subcausa || "Desconocidas", "Subcausa");
   await espera(500);
-  if (F.descripcion) escribe(control("descripcion"), F.descripcion);
   if (F.id && /^https:/.test(HOJA)) fetch(HOJA + "?marcar=" + encodeURIComponent(F.id)).catch(() => {});
-  alert("Listo: " + (F.equipo ? "reconectador " + F.equipo : F.alimentador) + " (" + F.desconexion + ")."
+  alert("Listo: " + (F.equipo ? "reconectador " + F.equipo : F.alimentador) + " (" + (F.desconexion || "sin hora") + ")."
     + (avisos.length ? "\n\nRevisa:\n• " + avisos.join("\n• ") : "") + "\n\nRevisa el formulario y presiona GUARDAR REGISTRO.");
 })();
