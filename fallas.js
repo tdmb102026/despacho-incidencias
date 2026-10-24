@@ -62,17 +62,19 @@ function parseHist(byColor) {
     if (!st || /ILEGAL|EMITIDO|ISSUE|EXECUTING/.test(M)) continue;
     if (color === "azul" && /ABIERT/.test(M)) ev.push({ ...st, close: false });
     else if (color === "verde" && !/ABIERT/.test(M)) ev.push({ ...st, close: true, auto: true });
-    else if (color === "blanco" && /REALIZADO|CAMBIO/.test(M) && /CERRAD|ABIERT/.test(M)) ev.push({ ...st, close: /CERRAD/.test(M) });
+    // El mensaje blanco a veces sale cortado ("Comando discreto Cerrado - Re")
+    else if (color === "blanco" && /REALIZ|CAMBIO|COMANDO|DISCRETO/.test(M) && /CERRAD|ABIERT/.test(M)) ev.push({ ...st, close: /CERRAD/.test(M) });
   }
   // Solo el día de la falla: el de hoy si sale, si no el más nuevo de la foto
   const today = new Date(), hoy = `${pad(today.getDate())}/${pad(today.getMonth() + 1)}/${today.getFullYear()}`;
   const day = ev.some(e => e.s.startsWith(hoy)) ? hoy : (ev.slice().sort((a, b) => b.n - a.n)[0] || { s: "" }).s.slice(0, 10);
   ev = ev.filter(e => e.s.startsWith(day)).sort((a, b) => a.n - b.n);
-  // La falla es la última racha de eventos (recierres a segundos); la apertura es la primera de esa racha
+  // La falla es la última racha: recierres a segundos y el cierre final, aunque el operador tarde.
+  // Empieza en la apertura que vino después de un cierre de más de 5 minutos antes
   let i = ev.length - 1;
-  while (i > 0 && ev[i].n - ev[i - 1].n <= 5 * 60e3) i--;
+  while (i > 0 && !(ev[i - 1].close && !ev[i].close && ev[i].n - ev[i - 1].n > 5 * 60e3)) i--;
   const racha = ev.slice(i), first = racha.find(e => !e.close), last = racha.at(-1);
-  const point = /(\d{2}[A-Z]{5,}\d{1,3}\s*-\s*\d{2}\s*_\s*[A-Z0-9]{3,8}?)(?=\s*-|\s|$)/.exec(N);
+  const point = /(\d{2}[A-Z]{5,}\d{1,3}\s*-\s*\d{2}\s*_\s*[A-Z0-9]{3,12}?)(?=\s*-|\s|$)/.exec(N);
   const tag = point ? point[1].replace(/\s/g, "").split("_").pop() : "";
   const closed = !!(first && last.close);
   return {
@@ -233,7 +235,7 @@ function rowOf(f) {
   return ["", f.inc || "", f.clientes || "", cerrado ? "CERRADO" : "ABIERTO", f.des || "", cerrado ? f.con || "" : "", "",
     f.eq && !rec ? f.eq.se : "", f.eq && !rec ? f.eq.nombre : "", f.ia || "", f.ib || "", f.ic || "", amps ? "" : f.kw || "",
     // La descripción va vacía: la bitácora la arma sola con los datos del formulario
-    f.origen || "", f.causa || "", f.subcausa || "", "", f.fases ? "Fase " + f.fases : "", rec ? f.eq.nombre : "", f.id];
+    f.origen || "", f.causa || "", f.subcausa || "", "", f.fases ? "51 " + f.fases : "", rec ? f.eq.nombre : "", f.id];
 }
 
 // ---------- pantallas ----------

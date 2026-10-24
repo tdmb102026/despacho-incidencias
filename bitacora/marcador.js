@@ -138,8 +138,9 @@
   if (cerrado) await fecha("fechaHoraConexion", F.conexion);
   F.clientes ? escribe(control("clientesAfectados"), num(F.clientes).replace(/\.\d*$/, "")) : avisos.push("Clientes afectados vacío");
   if (F.protecciones) {
-    const fases = F.protecciones.replace(/^FASES?\s*/i, "");
-    await lista(porEtiqueta("Protecciones actuadas"), [F.protecciones, "Fase " + fases, "Fases " + fases, fases], "Protecciones actuadas");
+    // En la bitácora las opciones son "51 A", "51 AB", "51 ABC"…; filas viejas traen "Fase AB"
+    const fases = F.protecciones.replace(/^(FASES?|51)\s*/i, "").toUpperCase();
+    await lista(porEtiqueta("Protecciones actuadas"), ["51 " + fases, "51 " + fases.replace("N", "")].map(v => v.trim()).filter(v => v !== "51"), "Protecciones actuadas");
   }
   // Reconectador: al elegir el equipo dinámico la bitácora pone sola la S/E y el alimentador
   if (F.equipo) {
