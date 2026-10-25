@@ -375,7 +375,7 @@ function fillTime(k) {
 }
 
 // Micrófono para dictar números ("uno uno cero tres…" o "110 310…"): aquí INC y clientes,
-// y en Despacho de incidencias la INC y el teléfono; y el nombre del primario
+// y en Despacho de incidencias la INC y el teléfono; y por nombre el primario y el equipo de la falla
 const MIC_OK = { "fx-inc": x => /^110\d{7,8}$/.test(x), "f-inc": x => x.length >= 6, "f-tel": x => /^09\d{8}$/.test(x) };
 const Speech = window.SpeechRecognition || window.webkitSpeechRecognition;
 const DIGITOS = { cero: 0, uno: 1, una: 1, dos: 2, tres: 3, cuatro: 4, cinco: 5, seis: 6, siete: 7, ocho: 8, nueve: 9 };
@@ -392,6 +392,17 @@ for (const b of document.querySelectorAll("[data-mic]")) {
         const hit = said.map(t => PRIS.filter(x => t.includes(x.k) || (t.length >= 4 && x.k.includes(t))).sort((x, y) => y.k.length - x.k.length)[0]).find(Boolean);
         if (hit) pickPri(hit.name);
         else { inp.value = e.results[0][0].transcript; suggest(); refresh(); }
+        return;
+      }
+      // Equipo de la falla: alimentador o reconectador ("reconectador Pomona" → Rec. POMONA)
+      if (b.dataset.mic === "fx-eq") {
+        const said = [...e.results[0]].map(a => squash(a.transcript));
+        const rec = said.some(t => /RECONECTADOR|^REC/.test(t));
+        const hit = said.map(t => t.replace(/RECONECTADOR|^REC/g, "")).map(t => EQUIPOS
+          .filter(x => t && (t.includes(x.k) || (t.length >= 4 && x.k.includes(t))))
+          .sort((x, y) => ((y.tipo === "rec") === rec) - ((x.tipo === "rec") === rec) || y.k.length - x.k.length)[0]).find(Boolean);
+        if (hit) { cur.eq = hit; learnCode(cur); changed(); }
+        else { inp.value = e.results[0][0].transcript; suggestEq(); }
         return;
       }
       const alts = [...e.results[0]].map(a => norm(a.transcript).toLowerCase().replace(/[a-z]+/g, w => DIGITOS[w] ?? " ").replace(/\D/g, ""));
