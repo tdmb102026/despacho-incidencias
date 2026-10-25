@@ -66,13 +66,31 @@ async function iaRead(file, tipo, listas) {
 }
 
 // ---------- Despacho de incidencias ----------
+// La pantalla de Gestión de incidencias casi nunca muestra el primario: la Ubicación es el sector ("HUANTUGSUMO PELILEO").
+// Se buscan nombres de alimentadores en la ubicación y el comentario, y la app recuerda qué primario se envió
+// para cada ubicación, así la próxima vez sale solo.
+let iaUbic = "";
+const ubicKey = u => squash(String(u).split(" - ")[0]);
+function iaPrims(out) {
+  const ubic = out.ubicacion || "", com = out.comentario || "";
+  const learned = ubic ? store.get("ubic-primario", {})[ubicKey(ubic)] : "";
+  const found = parseOCR(ubic + "\n" + com, com).prims;
+  return [learned, out.primario, ...found].filter((v, i, l) => v && priName(v) && l.indexOf(v) === i);
+}
+function iaLearn() {
+  const pri = priName($("f-pri").value);
+  if (!modoIA || !iaUbic || !ubicKey(iaUbic) || !pri) return;
+  const m = store.get("ubic-primario", {}); m[ubicKey(iaUbic)] = pri; store.set("ubic-primario", m);
+}
+$("share").addEventListener("click", iaLearn);
+$("copy").addEventListener("click", iaLearn);
 async function iaReadInc(file) {
   const { out, canvas } = await iaRead(file, "inc", { motivos: MOTIVOS.map(m => m[0]), primarios: ALIM.map(a => a[1]) });
   const six = d => String(d).replace(/\D/g, "").slice(-6);
   const tabs = (out.pestanas || []).map(six).filter(d => d.length === 6);
   const inc = six(out.activa || "") || tabs.at(-1) || "";
   const phones = [...new Set((out.telefonos || []).map(t => t.replace(/\D/g, "")).filter(t => /^0\d{9}$/.test(t)))];
-  return { inc, incs: [...new Set([...tabs, inc].filter(Boolean))], motivo: out.motivo || "", prims: out.primario ? [out.primario] : [],
+  return { inc, incs: [...new Set([...tabs, inc].filter(Boolean))], motivo: out.motivo || "", prims: iaPrims(out), ubic: out.ubicacion || "",
     phones, giro: out.giro || 0, canvas, raw: JSON.stringify(out, null, 1) };
 }
 async function processFileIA(file) {
