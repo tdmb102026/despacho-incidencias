@@ -62,7 +62,9 @@ La pantalla puede tener trama (moiré), reflejos o estar inclinada o girada: lee
 - Arriba hay pestañas con incidencias "INC 110315xxxxx" (11 dígitos). La pestaña activa es la que se ve seleccionada (resaltada o con su contenido abajo).
 - En la tabla de llamadas, la fila de la llamada tiene fecha, motivo (p. ej. "Sector sin servicio") y la ubicación.
 - El recuadro amarillo "Comentario" trae la dirección, el teléfono del cliente (TELF, CEL…: 10 dígitos que empiezan con 09) y el texto del cliente.
-- El primario es el alimentador de la incidencia ("Alimentador actual", p. ej. "01_09_Huambaló" → Huambaló). Elige el nombre exacto de la lista; si no aparece, deja "".`;
+- La columna "Ubicación" de la fila de la llamada trae el sector o barrio (p. ej. "HUANTUGSUMO PELILEO - HUANTUGSUMO"): cópiala tal cual.
+- El primario es el alimentador de la incidencia. Solo llénalo si en la pantalla se lee el nombre de un alimentador de la lista
+  (p. ej. "Alimentador actual: 01_09_Huambaló" → Huambaló). No lo deduzcas del nombre de una ciudad, barrio o calle: si no se lee, deja "".`;
 const SIS_FAL = `Lees fotos tomadas con un celular a pantallas del SCADA/ADMS de EEASA (Ambato, Ecuador) para llenar la bitácora de fallas internas.
 La pantalla puede tener trama (moiré), reflejos o estar inclinada o girada: lee con cuidado cada dígito, coma y punto, y no inventes. Si un dato no se ve, déjalo vacío.
 Las fechas van como dd/mm/aaaa hh:mm:ss (sin milisegundos).`;
@@ -75,6 +77,8 @@ function pedido_(tipo, listas) {
   if (tipo === "inc") return { sistema: SIS_INC, texto: "Lee esta foto de Gestión de incidencias.", esquema: obj_({
     pestanas: PESTANAS, activa: ACTIVA,
     motivo: { type: "string", enum: lista_(listas.motivos).concat([""]) },
+    ubicacion: { type: "string", description: "Texto de la columna Ubicación de la fila de la llamada" },
+    comentario: { type: "string", description: "Texto del recuadro amarillo Comentario" },
     primario: { type: "string", enum: lista_(listas.primarios).concat([""]) },
     telefonos: { type: "array", items: { type: "string" }, description: "Teléfonos del cliente, 10 dígitos, el más probable primero" },
     giro: { type: "integer", enum: [0, 90, 180, 270], description: "Grados en sentido horario para que la pantalla quede derecha" } }) };
