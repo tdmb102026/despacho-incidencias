@@ -74,7 +74,7 @@ details li { margin-bottom: 6px; }
   <div class="stage" id="stage">
     <canvas id="view" width="640" height="360"></canvas>
     <canvas id="overlay" width="640" height="360"></canvas>
-    <div class="hint" id="hint">Arrastra el dedo sobre la imagen para marcar la zona del sumario de alarmas</div>
+    <div class="hint" id="hint">Arrastra el dedo desde la esquina de arriba a la izquierda de la lista hasta la de abajo a la derecha</div>
   </div>
 
   <div class="status">
@@ -82,6 +82,7 @@ details li { margin-bottom: 6px; }
     <div class="tile"><b>Magenta en zona</b><span id="mg">–</span></div>
     <div class="tile"><b>Filas con datos</b><span id="dk">–</span></div>
     <div class="tile"><b>Último cuadro</b><span id="fr">–</span></div>
+    <div class="tile"><b>Pantalla</b><span id="wl">–</span></div>
   </div>
 
   <div class="opts">
@@ -282,7 +283,7 @@ details li { margin-bottom: 6px; }
     cam.srcObject = stream; await cam.play();
     running = true; ackLevel = null; risingCount = 0; emptySince = null; lastSig = null; frozenSince = null;
     timer = setInterval(tick, 400);
-    try { wakeLock = await navigator.wakeLock.request('screen'); } catch (e) { log('Deja la pantalla encendida manualmente (no se pudo bloquear el apagado).'); }
+    await keepAwake();
     $('start').disabled = true; $('stop').disabled = false;
     setState('Vigilando', 'ok'); log('Vigilancia iniciada');
   }
@@ -290,12 +291,31 @@ details li { margin-bottom: 6px; }
     running = false; clearInterval(timer);
     if (stream) stream.getTracks().forEach(t => t.stop());
     try { wakeLock && wakeLock.release(); } catch (e) {}
+    wakeLock = null; $('wl').textContent = '–';
     $('start').disabled = false; $('stop').disabled = true;
     setState('Detenido', 'warn'); log('Vigilancia detenida');
   }
+  // Mantener la pantalla encendida mientras vigila. El sistema puede soltar el bloqueo
+  // (ahorro de batería, cambio de app), así que se vuelve a pedir cada vez que se pierde.
+  async function keepAwake() {
+    if (!running || document.visibilityState !== 'visible') return;
+    if (wakeLock && !wakeLock.released) return;
+    if (!('wakeLock' in navigator)) { $('wl').textContent = 'Puede apagarse'; return; }
+    try {
+      wakeLock = await navigator.wakeLock.request('screen');
+      $('wl').textContent = 'Siempre encendida';
+      wakeLock.addEventListener('release', () => { $('wl').textContent = 'Puede apagarse'; setTimeout(keepAwake, 1000); });
+    } catch (e) {
+      if ($('wl').textContent !== 'Puede apagarse') log('No se pudo mantener la pantalla encendida. Si el ahorro de batería está activo, apágalo.');
+      $('wl').textContent = 'Puede apagarse';
+    }
+  }
+  setInterval(keepAwake, 15000);
+  document.addEventListener('click', keepAwake);
+
   $('start').onclick = start; $('stop').onclick = stop;
   document.addEventListener('visibilitychange', async () => {
-    if (running && document.visibilityState === 'visible') { try { wakeLock = await navigator.wakeLock.request('screen'); } catch (e) {} }
+    if (running && document.visibilityState === 'visible') keepAwake();
     if (running && document.visibilityState === 'hidden') log('La app quedó en segundo plano: puede dejar de vigilar.');
   });
 
