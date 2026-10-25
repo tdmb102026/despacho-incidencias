@@ -45,6 +45,9 @@ select { font: inherit; background: var(--bg); color: var(--fg); border: 1px sol
 #alarm { position: fixed; inset: 0; z-index: 20; display: grid; place-items: center; text-align: center; padding: 24px;
   background: var(--mag); color: #fff; animation: flash 0.8s steps(2) infinite; }
 #alarm.aor { background: var(--warn); color: #111; }
+#alarm.red { background: var(--bad); }
+.vol { display: flex; gap: 8px; align-items: center; }
+.vol input { flex: 1; min-width: 0; accent-color: var(--mag); }
 #alarm h2 { font-size: clamp(28px, 7vw, 54px); margin: 0 0 8px; }
 #alarm p { font-size: 18px; margin: 0 0 24px; }
 #alarm button { font-size: 22px; padding: 18px 34px; background: #fff; color: #111; border: 0; }
@@ -61,7 +64,7 @@ details li { margin-bottom: 6px; }
 <main>
   <div>
     <h1>Vigía de <span>Alarmas</span></h1>
-    <p class="sub">Mira el sumario de alarmas con la cámara y suena solo con aperturas (magenta) o si el sumario se queda vacío (pérdida de AOR). No se conecta al SCADA.</p>
+    <p class="sub">Mira el sumario de alarmas con la cámara y suena solo con aperturas (magenta), si el sumario se llena de rojas o si se queda vacío (pérdida de AOR). No se conecta al SCADA.</p>
   </div>
 
   <div class="row">
@@ -74,14 +77,16 @@ details li { margin-bottom: 6px; }
   <div class="stage" id="stage">
     <canvas id="view" width="640" height="360"></canvas>
     <canvas id="overlay" width="640" height="360"></canvas>
-    <div class="hint" id="hint">Arrastra el dedo sobre la imagen para marcar la zona del sumario de alarmas</div>
+    <div class="hint" id="hint">Arrastra el dedo desde la esquina de arriba a la izquierda de la lista hasta la de abajo a la derecha</div>
   </div>
 
   <div class="status">
     <div class="tile"><b>Estado</b><span id="st"><span class="pill warn">Detenido</span></span></div>
     <div class="tile"><b>Magenta en zona</b><span id="mg">–</span></div>
+    <div class="tile"><b>Filas rojas</b><span id="rd">–</span></div>
     <div class="tile"><b>Filas con datos</b><span id="dk">–</span></div>
     <div class="tile"><b>Último cuadro</b><span id="fr">–</span></div>
+    <div class="tile"><b>Pantalla</b><span id="wl">–</span></div>
   </div>
 
   <div class="opts">
@@ -92,6 +97,8 @@ details li { margin-bottom: 6px; }
         <option value="low">Baja</option>
       </select>
     </label>
+    <div class="vol"><label for="vol">Volumen</label><input type="range" id="vol" min="0" max="100" step="5" value="80"><span id="volTxt">80 %</span></div>
+    <label><input type="checkbox" id="redOn" checked> Avisar si el sumario se llena de alarmas rojas</label>
     <label><input type="checkbox" id="aorOn" checked> Avisar si el sumario se queda vacío (pérdida de AOR)</label>
     <label><input type="checkbox" id="maskOn" checked> Mostrar en pantalla lo que detecta como magenta</label>
   </div>
@@ -105,6 +112,7 @@ details li { margin-bottom: 6px; }
       <li>Deja la pantalla del celular encendida y conectado al cargador.</li>
       <li>Cuando aparezca una alarma magenta nueva, suena y la pantalla parpadea. Toca <b>Silenciar</b>; vuelve a sonar solo si aparece otra magenta.</li>
       <li>Si el sumario se queda en blanco más de 10 segundos, suena un aviso naranja de posible pérdida de AOR.</li>
+      <li>Si casi todas las filas del sumario son rojas durante 5 segundos, suena un aviso rojo. Al silenciarlo, repite a los 5 minutos si sigue igual.</li>
       <li>Si la cámara se congela, también avisa.</li>
     </ol>
     <p class="sub">Es una ayuda, no reemplaza al SCADA. Mantén el volumen de la consola bajo, no en cero.</p>
@@ -139,7 +147,7 @@ details li { margin-bottom: 6px; }
 
   const SENS = { high: 0.0006, mid: 0.0015, low: 0.004 }; // fracción de píxeles magenta nuevos en la zona
   let running = false, stream = null, timer = null, wakeLock = null;
-  let ackLevel = null, risingCount = 0, emptySince = null, lastSig = null, frozenSince = null;
+  let ackLevel = null, risingCount = 0, emptySince = null, redSince = null, lastSig = null, frozenSince = null;
   let alarmKind = null, audio = null, siren = null;
 
   function log(msg) {
@@ -149,8 +157,18 @@ details li { margin-bottom: 6px; }
   function setState(text, cls) { $('st').innerHTML = `<span class="pill ${cls}">${text}</span>`; }
 
   // ---------- Sonido ----------
+  let master = null;
+  let volume = 0.8;
+  try { const v = parseFloat(localStorage.getItem('vigia-vol')); if (v >= 0 && v <= 1) volume = v; } catch (e) {}
+  $('vol').value = Math.round(volume * 100); $('volTxt').textContent = Math.round(volume * 100) + ' %';
+  $('vol').oninput = () => {
+    volume = $('vol').value / 100; $('volTxt').textContent = $('vol').value + ' %';
+    if (master) master.gain.value = volume;
+    try { localStorage.setItem('vigia-vol', volume); } catch (e) {}
+  };
+  $('vol').onchange = () => { ensureAudio(); pattern('open'); };
   function ensureAudio() {
-    if (!audio) audio = new (window.AudioContext || window.webkitAudioContext)();
+    if (!audio) { audio = new (window.AudioContext || window.webkitAudioContext)(); master = audio.createGain(); master.gain.value = volume; master.connect(audio.destination); }
     if (audio.state === 'suspended') audio.resume();
   }
   function beep(freq, start, dur, gain = 0.9) {
@@ -160,22 +178,25 @@ details li { margin-bottom: 6px; }
     g.gain.linearRampToValueAtTime(gain, start + 0.02);
     g.gain.setValueAtTime(gain, start + dur - 0.03);
     g.gain.linearRampToValueAtTime(0, start + dur);
-    o.connect(g).connect(audio.destination); o.start(start); o.stop(start + dur + 0.01);
+    o.connect(g).connect(master); o.start(start); o.stop(start + dur + 0.01);
   }
   function pattern(kind) {
     ensureAudio();
     const t = audio.currentTime + 0.02;
     if (kind === 'aor') { beep(520, t, 0.5); beep(520, t + 0.7, 0.5); }
+    else if (kind === 'red') { beep(784, t, 0.25); beep(784, t + 0.35, 0.25); beep(784, t + 0.7, 0.25); }
     else { beep(1046, t, 0.18); beep(1318, t + 0.22, 0.18); beep(1568, t + 0.44, 0.3); }
   }
   function raise(kind, title, text) {
     if (alarmKind) return;
     alarmKind = kind;
     $('alTitle').textContent = title; $('alText').textContent = text;
-    $('alarm').classList.toggle('aor', kind !== 'open');
+    const sound = kind === 'frozen' ? 'aor' : kind;
+    $('alarm').classList.toggle('aor', kind === 'aor' || kind === 'frozen');
+    $('alarm').classList.toggle('red', kind === 'red');
     $('alarm').hidden = false;
-    pattern(kind === 'open' ? 'open' : 'aor');
-    siren = setInterval(() => { pattern(kind === 'open' ? 'open' : 'aor'); if (navigator.vibrate) navigator.vibrate([300, 150, 300]); }, 1600);
+    pattern(sound);
+    siren = setInterval(() => { pattern(sound); if (navigator.vibrate) navigator.vibrate([300, 150, 300]); }, 1600);
     log(`ALARMA: ${title}`);
   }
   $('ack').onclick = () => {
@@ -183,18 +204,21 @@ details li { margin-bottom: 6px; }
     if (alarmKind === 'open') { ackLevel = lastMag; risingCount = 0; }
     if (alarmKind === 'aor') emptySince = Date.now() + 50000; // espera 60 s antes de repetir
     if (alarmKind === 'frozen') frozenSince = Date.now() + 50000;
+    if (alarmKind === 'red') redSince = Date.now() + 300000; // repite a los 5 min si sigue lleno de rojas
     log('Silenciada'); alarmKind = null;
   };
-  $('test').onclick = () => { ensureAudio(); pattern('open'); setTimeout(() => pattern('aor'), 1300); };
+  $('test').onclick = () => { ensureAudio(); pattern('open'); setTimeout(() => pattern('red'), 1300); setTimeout(() => pattern('aor'), 2700); };
 
   // ---------- Análisis de imagen ----------
   let lastMag = 0;
   function classify(img, wid, hei, drawMask) {
     const d = img.data; let mag = 0, dark = 0, n = 0, sig = 0;
+    let redLines = 0, textLines = 0;
     const x0 = Math.floor(roi.x * wid), y0 = Math.floor(roi.y * hei);
     const x1 = Math.floor((roi.x + roi.w) * wid), y1 = Math.floor((roi.y + roi.h) * hei);
     const mask = drawMask ? octx.createImageData(wid, hei) : null;
     for (let y = y0; y < y1; y++) {
+      let lr = 0, lt = 0;
       for (let x = x0; x < x1; x++) {
         const i = (y * wid + x) * 4, r = d[i], g = d[i + 1], b = d[i + 2];
         const mx = Math.max(r, g, b), mn = Math.min(r, g, b), c = mx - mn;
@@ -205,13 +229,18 @@ details li { margin-bottom: 6px; }
         let h;
         if (mx === r) h = ((g - b) / c + 6) % 6; else if (mx === g) h = (b - r) / c + 2; else h = (r - g) / c + 4;
         h *= 60;
+        lt++;
         if (h > 275 && h < 340) {
           mag++;
           if (mask) { mask.data[i] = 255; mask.data[i + 1] = 255; mask.data[i + 2] = 255; mask.data[i + 3] = 255; }
-        }
+        } else if (h < 15 || h > 345) lr++;
       }
+      // Una línea de píxeles cuenta como texto si tiene al menos 3 píxeles de color
+      if (lt >= 3) { textLines++; if (lr >= 3 && lr * 2 >= lt) redLines++; }
     }
-    return { mag: n ? mag / n : 0, dark: n ? dark / n : 0, sig, mask };
+    const lines = Math.max(1, y1 - y0);
+    return { mag: n ? mag / n : 0, dark: n ? dark / n : 0, sig, mask,
+      red: textLines ? redLines / textLines : 0, text: textLines / lines };
   }
 
   function drawOverlay(mask) {
@@ -228,6 +257,7 @@ details li { margin-bottom: 6px; }
     lastMag = r.mag;
     $('mg').textContent = (r.mag * 100).toFixed(2) + ' %';
     $('dk').textContent = (r.dark * 100).toFixed(0) + ' %';
+    $('rd').textContent = (r.red * 100).toFixed(0) + ' %';
     drawOverlay(r.mask);
     if (!live) return r;
 
@@ -245,6 +275,12 @@ details li { margin-bottom: 6px; }
     const delta = SENS[$('sens').value];
     if (r.mag - ackLevel > delta) { risingCount++; if (risingCount >= 3) raise('open', 'APERTURA', 'Nueva alarma magenta en el sumario'); }
     else risingCount = 0;
+
+    // Sumario lleno de rojas: casi todas las filas con texto son rojas durante 5 s
+    if ($('redOn').checked && r.red > 0.7 && r.text > 0.15) {
+      if (!redSince) redSince = now;
+      else if (now - redSince > 5000) raise('red', 'SUMARIO EN ROJO', 'Casi todas las alarmas del sumario son rojas.');
+    } else if (redSince && redSince <= now) redSince = null;
 
     // Pérdida de AOR: zona casi sin filas oscuras durante 10 s
     if ($('aorOn').checked && r.dark < 0.03) {
@@ -280,9 +316,9 @@ details li { margin-bottom: 6px; }
       stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false });
     } catch (e) { setState('Cámara bloqueada', 'bad'); log('No se pudo abrir la cámara: ' + e.message); return; }
     cam.srcObject = stream; await cam.play();
-    running = true; ackLevel = null; risingCount = 0; emptySince = null; lastSig = null; frozenSince = null;
+    running = true; ackLevel = null; risingCount = 0; emptySince = null; redSince = null; lastSig = null; frozenSince = null;
     timer = setInterval(tick, 400);
-    try { wakeLock = await navigator.wakeLock.request('screen'); } catch (e) { log('Deja la pantalla encendida manualmente (no se pudo bloquear el apagado).'); }
+    await keepAwake();
     $('start').disabled = true; $('stop').disabled = false;
     setState('Vigilando', 'ok'); log('Vigilancia iniciada');
   }
@@ -290,12 +326,31 @@ details li { margin-bottom: 6px; }
     running = false; clearInterval(timer);
     if (stream) stream.getTracks().forEach(t => t.stop());
     try { wakeLock && wakeLock.release(); } catch (e) {}
+    wakeLock = null; $('wl').textContent = '–';
     $('start').disabled = false; $('stop').disabled = true;
     setState('Detenido', 'warn'); log('Vigilancia detenida');
   }
+  // Mantener la pantalla encendida mientras vigila. El sistema puede soltar el bloqueo
+  // (ahorro de batería, cambio de app), así que se vuelve a pedir cada vez que se pierde.
+  async function keepAwake() {
+    if (!running || document.visibilityState !== 'visible') return;
+    if (wakeLock && !wakeLock.released) return;
+    if (!('wakeLock' in navigator)) { $('wl').textContent = 'Puede apagarse'; return; }
+    try {
+      wakeLock = await navigator.wakeLock.request('screen');
+      $('wl').textContent = 'Siempre encendida';
+      wakeLock.addEventListener('release', () => { $('wl').textContent = 'Puede apagarse'; setTimeout(keepAwake, 1000); });
+    } catch (e) {
+      if ($('wl').textContent !== 'Puede apagarse') log('No se pudo mantener la pantalla encendida. Si el ahorro de batería está activo, apágalo.');
+      $('wl').textContent = 'Puede apagarse';
+    }
+  }
+  setInterval(keepAwake, 15000);
+  document.addEventListener('click', keepAwake);
+
   $('start').onclick = start; $('stop').onclick = stop;
   document.addEventListener('visibilitychange', async () => {
-    if (running && document.visibilityState === 'visible') { try { wakeLock = await navigator.wakeLock.request('screen'); } catch (e) {} }
+    if (running && document.visibilityState === 'visible') keepAwake();
     if (running && document.visibilityState === 'hidden') log('La app quedó en segundo plano: puede dejar de vigilar.');
   });
 
@@ -308,7 +363,7 @@ details li { margin-bottom: 6px; }
       vctx.drawImage(img, 0, 0, view.width, view.height);
       const r = analyze(true, false);
       const sees = r.mag > SENS[$('sens').value];
-      log(`Foto: magenta ${(r.mag * 100).toFixed(2)} %, filas ${(r.dark * 100).toFixed(0)} % → ${sees ? 'detecta magenta' : 'sin magenta'}${r.dark < 0.03 ? ', sumario vacío' : ''}`);
+      log(`Foto: magenta ${(r.mag * 100).toFixed(2)} %, rojas ${(r.red * 100).toFixed(0)} %, filas ${(r.dark * 100).toFixed(0)} % → ${sees ? 'detecta magenta' : 'sin magenta'}${r.dark < 0.03 ? ', sumario vacío' : ''}`);
       setState(sees ? 'Magenta detectado' : 'Sin magenta', sees ? 'bad' : 'ok');
       URL.revokeObjectURL(img.src);
     };
