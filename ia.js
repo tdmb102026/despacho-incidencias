@@ -175,9 +175,20 @@ function readSlotIA(f, n, file) {
 function setModo(ia) {
   modoIA = ia;
   $("modo-lbl").textContent = ia ? "Con IA · " + (iaGet("ia-nombre") || "operador") : "Sin IA";
-  $("ia-salir").hidden = !ia;
+  $("ia-turno").hidden = !ia;
+  iaQueda();
   $("home-tip").textContent = ia ? "Las fotos las lee la IA (necesita internet)." : "Toma la foto de cerca, con la fila de la llamada y el recuadro del Comentario visibles.";
 }
+// Cronómetro del turno: cuánto le queda a la contraseña. Al acabarse, la vuelve a pedir.
+function iaQueda() {
+  if (!modoIA) return;
+  const m = Math.ceil((+iaGet("ia-hasta") - Date.now()) / 60e3);
+  if (m > 0) { $("ia-queda").textContent = "Quedan " + (m >= 60 ? Math.floor(m / 60) + " h " : "") + (m % 60) + " min"; return; }
+  $("ia-queda").textContent = "Turno terminado";
+  if (!$("home").hidden) { iaClave(); setModo(false); history.replaceState({ v: "clave" }, ""); show("clave"); }
+}
+setInterval(iaQueda, 20e3);
+document.addEventListener("visibilitychange", iaQueda);
 $("go-sin").onclick = () => { setModo(false); history.pushState({ v: "home" }, ""); show("home"); };
 $("go-con").onclick = () => {
   if (iaClave() && iaUrl()) { setModo(true); history.pushState({ v: "home" }, ""); show("home"); return; }
