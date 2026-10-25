@@ -9,6 +9,11 @@ self.addEventListener("activate", e => e.waitUntil(caches.keys().then(ks => Prom
 self.addEventListener("fetch", e => {
   if (e.request.method !== "GET") return;
   // La página: primero la red (para recibir mejoras), si no hay señal la guardada. El resto: lo guardado.
+  // Vigía de Alarmas (vigia/) es otra página: se guarda aparte para no pisar la de la app.
+  if (e.request.mode === "navigate" && new URL(e.request.url).pathname.includes("/vigia/")) {
+    e.respondWith(fetch(e.request).then(r => { caches.open(CACHE).then(c => c.put("vigia/", r.clone())); return r; }).catch(() => caches.match("vigia/")));
+    return;
+  }
   if (e.request.mode === "navigate") e.respondWith(fetch(e.request).then(r => { caches.open(CACHE).then(c => c.put("index.html", r.clone())); return r; }).catch(() => caches.match("index.html")));
   else e.respondWith(caches.match(e.request).then(r => r || fetch(e.request)));
 });

@@ -1,0 +1,343 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Vigía de Alarmas</title>
+<style>
+/* Herramienta de un solo panel para sala de control: fondo oscuro fijo, acentos magenta. */
+:root {
+  --bg: #0d1016; --panel: #161b24; --line: #2a3140; --fg: #e6e9ef; --muted: #8b93a3;
+  --mag: #ff2bd6; --ok: #3ddc84; --warn: #ffb020; --bad: #ff4d4d;
+  --font: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --mono: ui-monospace, "Cascadia Mono", Consolas, monospace;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.45 var(--font); }
+main { max-width: 900px; margin: 0 auto; padding-block: 14px 40px;
+  padding-left: max(14px, env(safe-area-inset-left, 0px)); padding-right: max(14px, env(safe-area-inset-right, 0px));
+  display: grid; gap: 12px; }
+h1 { font-size: 20px; margin: 0; letter-spacing: .02em; }
+h1 span { color: var(--mag); }
+.sub { color: var(--muted); margin: 0; font-size: 13px; }
+.row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+button, label.btn { font: inherit; font-weight: 600; border: 1px solid var(--line); background: var(--panel); color: var(--fg);
+  padding: 10px 14px; border-radius: 8px; cursor: pointer; }
+button:focus-visible, label.btn:focus-within { outline: 2px solid var(--mag); outline-offset: 2px; }
+button.primary { background: var(--mag); border-color: var(--mag); color: #fff; }
+button:disabled { opacity: .45; cursor: default; }
+.stage { position: relative; background: #000; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; touch-action: none; }
+.stage canvas { display: block; width: 100%; height: auto; }
+#overlay { position: absolute; inset: 0; width: 100%; height: 100%; }
+.hint { position: absolute; left: 8px; bottom: 8px; background: rgba(0,0,0,.7); padding: 4px 8px; border-radius: 6px; font-size: 12px; color: var(--muted); }
+.status { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; }
+.tile { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; }
+.tile b { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); font-weight: 600; }
+.tile span { font: 600 18px var(--mono); font-variant-numeric: tabular-nums; }
+.pill { display: inline-block; padding: 2px 10px; border-radius: 99px; font-size: 13px; font-weight: 700; }
+.pill.ok { background: rgba(61,220,132,.15); color: var(--ok); }
+.pill.warn { background: rgba(255,176,32,.15); color: var(--warn); }
+.pill.bad { background: rgba(255,77,77,.18); color: var(--bad); }
+.opts { display: grid; gap: 8px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 12px; }
+.opts label { display: flex; gap: 8px; align-items: center; }
+select { font: inherit; background: var(--bg); color: var(--fg); border: 1px solid var(--line); border-radius: 6px; padding: 6px; }
+#alarm { position: fixed; inset: 0; z-index: 20; display: grid; place-items: center; text-align: center; padding: 24px;
+  background: var(--mag); color: #fff; animation: flash 0.8s steps(2) infinite; }
+#alarm.aor { background: var(--warn); color: #111; }
+#alarm h2 { font-size: clamp(28px, 7vw, 54px); margin: 0 0 8px; }
+#alarm p { font-size: 18px; margin: 0 0 24px; }
+#alarm button { font-size: 22px; padding: 18px 34px; background: #fff; color: #111; border: 0; }
+@keyframes flash { 50% { filter: brightness(.6); } }
+@media (prefers-reduced-motion: reduce) { #alarm { animation: none; } }
+details { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; }
+details summary { cursor: pointer; font-weight: 600; }
+details li { margin-bottom: 6px; }
+#log { font: 12px/1.5 var(--mono); color: var(--muted); max-height: 140px; overflow: auto; margin: 0; white-space: pre-wrap; }
+[hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<main>
+  <div>
+    <h1>Vigía de <span>Alarmas</span></h1>
+    <p class="sub">Mira el sumario de alarmas con la cámara y suena solo con aperturas (magenta) o si el sumario se queda vacío (pérdida de AOR). No se conecta al SCADA.</p>
+  </div>
+
+  <div class="row">
+    <button id="start" class="primary">Iniciar vigilancia</button>
+    <button id="stop" disabled>Detener</button>
+    <button id="test">Probar sonido</button>
+    <label class="btn">Probar con foto<input id="photo" type="file" accept="image/*" hidden></label>
+  </div>
+
+  <div class="stage" id="stage">
+    <canvas id="view" width="640" height="360"></canvas>
+    <canvas id="overlay" width="640" height="360"></canvas>
+    <div class="hint" id="hint">Arrastra el dedo sobre la imagen para marcar la zona del sumario de alarmas</div>
+  </div>
+
+  <div class="status">
+    <div class="tile"><b>Estado</b><span id="st"><span class="pill warn">Detenido</span></span></div>
+    <div class="tile"><b>Magenta en zona</b><span id="mg">–</span></div>
+    <div class="tile"><b>Filas con datos</b><span id="dk">–</span></div>
+    <div class="tile"><b>Último cuadro</b><span id="fr">–</span></div>
+  </div>
+
+  <div class="opts">
+    <label>Sensibilidad magenta
+      <select id="sens">
+        <option value="high">Alta</option>
+        <option value="mid" selected>Media</option>
+        <option value="low">Baja</option>
+      </select>
+    </label>
+    <label><input type="checkbox" id="aorOn" checked> Avisar si el sumario se queda vacío (pérdida de AOR)</label>
+    <label><input type="checkbox" id="maskOn" checked> Mostrar en pantalla lo que detecta como magenta</label>
+  </div>
+
+  <details>
+    <summary>Cómo usarla</summary>
+    <ol>
+      <li>Pon el celular o la cámara fijo, apuntando a la pantalla del sumario de alarmas. Que no se mueva.</li>
+      <li>Toca <b>Iniciar vigilancia</b> y permite la cámara.</li>
+      <li>Arrastra el dedo sobre la imagen para marcar solo la lista del sumario (sin la barra de botones).</li>
+      <li>Deja la pantalla del celular encendida y conectado al cargador.</li>
+      <li>Cuando aparezca una alarma magenta nueva, suena y la pantalla parpadea. Toca <b>Silenciar</b>; vuelve a sonar solo si aparece otra magenta.</li>
+      <li>Si el sumario se queda en blanco más de 10 segundos, suena un aviso naranja de posible pérdida de AOR.</li>
+      <li>Si la cámara se congela, también avisa.</li>
+    </ol>
+    <p class="sub">Es una ayuda, no reemplaza al SCADA. Mantén el volumen de la consola bajo, no en cero.</p>
+  </details>
+
+  <details>
+    <summary>Registro</summary>
+    <pre id="log"></pre>
+  </details>
+</main>
+
+<div id="alarm" hidden>
+  <div>
+    <h2 id="alTitle">APERTURA</h2>
+    <p id="alText">Nueva alarma magenta en el sumario</p>
+    <button id="ack">Silenciar</button>
+  </div>
+</div>
+
+<video id="cam" playsinline muted hidden></video>
+
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const view = $('view'), ov = $('overlay'), vctx = view.getContext('2d', { willReadFrequently: true }), octx = ov.getContext('2d');
+  const cam = $('cam');
+  const W = 640;
+
+  // Zona del sumario, en coordenadas 0..1
+  let roi = { x: 0.05, y: 0.15, w: 0.9, h: 0.7 };
+  try { const s = JSON.parse(localStorage.getItem('vigia-roi')); if (s && s.w > 0.02) roi = s; } catch (e) {}
+
+  const SENS = { high: 0.0006, mid: 0.0015, low: 0.004 }; // fracción de píxeles magenta nuevos en la zona
+  let running = false, stream = null, timer = null, wakeLock = null;
+  let ackLevel = null, risingCount = 0, emptySince = null, lastSig = null, frozenSince = null;
+  let alarmKind = null, audio = null, siren = null;
+
+  function log(msg) {
+    const t = new Date().toLocaleTimeString('es-EC');
+    $('log').textContent = `${t}  ${msg}\n` + $('log').textContent.slice(0, 4000);
+  }
+  function setState(text, cls) { $('st').innerHTML = `<span class="pill ${cls}">${text}</span>`; }
+
+  // ---------- Sonido ----------
+  function ensureAudio() {
+    if (!audio) audio = new (window.AudioContext || window.webkitAudioContext)();
+    if (audio.state === 'suspended') audio.resume();
+  }
+  function beep(freq, start, dur, gain = 0.9) {
+    const o = audio.createOscillator(), g = audio.createGain();
+    o.type = 'square'; o.frequency.value = freq;
+    g.gain.setValueAtTime(0, start);
+    g.gain.linearRampToValueAtTime(gain, start + 0.02);
+    g.gain.setValueAtTime(gain, start + dur - 0.03);
+    g.gain.linearRampToValueAtTime(0, start + dur);
+    o.connect(g).connect(audio.destination); o.start(start); o.stop(start + dur + 0.01);
+  }
+  function pattern(kind) {
+    ensureAudio();
+    const t = audio.currentTime + 0.02;
+    if (kind === 'aor') { beep(520, t, 0.5); beep(520, t + 0.7, 0.5); }
+    else { beep(1046, t, 0.18); beep(1318, t + 0.22, 0.18); beep(1568, t + 0.44, 0.3); }
+  }
+  function raise(kind, title, text) {
+    if (alarmKind) return;
+    alarmKind = kind;
+    $('alTitle').textContent = title; $('alText').textContent = text;
+    $('alarm').classList.toggle('aor', kind !== 'open');
+    $('alarm').hidden = false;
+    pattern(kind === 'open' ? 'open' : 'aor');
+    siren = setInterval(() => { pattern(kind === 'open' ? 'open' : 'aor'); if (navigator.vibrate) navigator.vibrate([300, 150, 300]); }, 1600);
+    log(`ALARMA: ${title}`);
+  }
+  $('ack').onclick = () => {
+    clearInterval(siren); siren = null; $('alarm').hidden = true;
+    if (alarmKind === 'open') { ackLevel = lastMag; risingCount = 0; }
+    if (alarmKind === 'aor') emptySince = Date.now() + 50000; // espera 60 s antes de repetir
+    if (alarmKind === 'frozen') frozenSince = Date.now() + 50000;
+    log('Silenciada'); alarmKind = null;
+  };
+  $('test').onclick = () => { ensureAudio(); pattern('open'); setTimeout(() => pattern('aor'), 1300); };
+
+  // ---------- Análisis de imagen ----------
+  let lastMag = 0;
+  function classify(img, wid, hei, drawMask) {
+    const d = img.data; let mag = 0, dark = 0, n = 0, sig = 0;
+    const x0 = Math.floor(roi.x * wid), y0 = Math.floor(roi.y * hei);
+    const x1 = Math.floor((roi.x + roi.w) * wid), y1 = Math.floor((roi.y + roi.h) * hei);
+    const mask = drawMask ? octx.createImageData(wid, hei) : null;
+    for (let y = y0; y < y1; y++) {
+      for (let x = x0; x < x1; x++) {
+        const i = (y * wid + x) * 4, r = d[i], g = d[i + 1], b = d[i + 2];
+        const mx = Math.max(r, g, b), mn = Math.min(r, g, b), c = mx - mn;
+        n++;
+        if (mx < 64) dark++;
+        if ((x & 7) === 0 && (y & 7) === 0) sig += r + g + b;
+        if (mx < 100 || c / mx < 0.45) continue;
+        let h;
+        if (mx === r) h = ((g - b) / c + 6) % 6; else if (mx === g) h = (b - r) / c + 2; else h = (r - g) / c + 4;
+        h *= 60;
+        if (h > 275 && h < 340) {
+          mag++;
+          if (mask) { mask.data[i] = 255; mask.data[i + 1] = 255; mask.data[i + 2] = 255; mask.data[i + 3] = 255; }
+        }
+      }
+    }
+    return { mag: n ? mag / n : 0, dark: n ? dark / n : 0, sig, mask };
+  }
+
+  function drawOverlay(mask) {
+    octx.clearRect(0, 0, ov.width, ov.height);
+    if (mask && $('maskOn').checked) octx.putImageData(mask, 0, 0);
+    octx.strokeStyle = '#ff2bd6'; octx.lineWidth = 3; octx.setLineDash([10, 6]);
+    octx.strokeRect(roi.x * ov.width, roi.y * ov.height, roi.w * ov.width, roi.h * ov.height);
+    octx.setLineDash([]);
+  }
+
+  function analyze(drawMask, live) {
+    const img = vctx.getImageData(0, 0, view.width, view.height);
+    const r = classify(img, view.width, view.height, drawMask);
+    lastMag = r.mag;
+    $('mg').textContent = (r.mag * 100).toFixed(2) + ' %';
+    $('dk').textContent = (r.dark * 100).toFixed(0) + ' %';
+    drawOverlay(r.mask);
+    if (!live) return r;
+
+    const now = Date.now();
+    // Congelamiento de cámara: la imagen no cambia nada durante 20 s
+    if (lastSig !== null && Math.abs(r.sig - lastSig) < 1) {
+      if (!frozenSince) frozenSince = now;
+      else if (now - frozenSince > 20000) raise('frozen', 'CÁMARA DETENIDA', 'La imagen no cambia. Revisa el celular o la cámara.');
+    } else if (frozenSince && frozenSince <= now) frozenSince = null;
+    lastSig = r.sig;
+
+    // Aperturas: aumento de magenta sobre el nivel ya silenciado
+    if (ackLevel === null) { ackLevel = r.mag; log(`Nivel inicial de magenta: ${(r.mag * 100).toFixed(2)} %`); }
+    if (r.mag < ackLevel) ackLevel = r.mag; // si se reconocen en el SCADA, baja el nivel
+    const delta = SENS[$('sens').value];
+    if (r.mag - ackLevel > delta) { risingCount++; if (risingCount >= 3) raise('open', 'APERTURA', 'Nueva alarma magenta en el sumario'); }
+    else risingCount = 0;
+
+    // Pérdida de AOR: zona casi sin filas oscuras durante 10 s
+    if ($('aorOn').checked && r.dark < 0.03) {
+      if (!emptySince) emptySince = now;
+      else if (now - emptySince > 10000) raise('aor', 'SUMARIO VACÍO', 'Posible pérdida de AOR. Revisa Control y Vista en "yes".');
+    } else if (emptySince && emptySince <= now) emptySince = null;
+
+    if (!alarmKind) setState('Vigilando', 'ok');
+    $('fr').textContent = new Date().toLocaleTimeString('es-EC');
+    return r;
+  }
+
+  function fitCanvases(w, h) {
+    const H = Math.round(W * h / w);
+    view.width = ov.width = W; view.height = ov.height = H;
+  }
+
+  function tick() {
+    if (!running || cam.readyState < 2) return;
+    if (view.width !== W || Math.abs(view.height - Math.round(W * cam.videoHeight / cam.videoWidth)) > 1) fitCanvases(cam.videoWidth, cam.videoHeight);
+    vctx.drawImage(cam, 0, 0, view.width, view.height);
+    analyze(true, true);
+  }
+
+  async function start() {
+    ensureAudio();
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      setState('Sin cámara', 'bad');
+      log('Este navegador no permite la cámara desde este archivo. Prueba con Chrome o ábrelo desde una dirección https.');
+      return;
+    }
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false });
+    } catch (e) { setState('Cámara bloqueada', 'bad'); log('No se pudo abrir la cámara: ' + e.message); return; }
+    cam.srcObject = stream; await cam.play();
+    running = true; ackLevel = null; risingCount = 0; emptySince = null; lastSig = null; frozenSince = null;
+    timer = setInterval(tick, 400);
+    try { wakeLock = await navigator.wakeLock.request('screen'); } catch (e) { log('Deja la pantalla encendida manualmente (no se pudo bloquear el apagado).'); }
+    $('start').disabled = true; $('stop').disabled = false;
+    setState('Vigilando', 'ok'); log('Vigilancia iniciada');
+  }
+  function stop() {
+    running = false; clearInterval(timer);
+    if (stream) stream.getTracks().forEach(t => t.stop());
+    try { wakeLock && wakeLock.release(); } catch (e) {}
+    $('start').disabled = false; $('stop').disabled = true;
+    setState('Detenido', 'warn'); log('Vigilancia detenida');
+  }
+  $('start').onclick = start; $('stop').onclick = stop;
+  document.addEventListener('visibilitychange', async () => {
+    if (running && document.visibilityState === 'visible') { try { wakeLock = await navigator.wakeLock.request('screen'); } catch (e) {} }
+    if (running && document.visibilityState === 'hidden') log('La app quedó en segundo plano: puede dejar de vigilar.');
+  });
+
+  // ---------- Probar con foto ----------
+  $('photo').onchange = e => {
+    const f = e.target.files[0]; if (!f) return;
+    const img = new Image();
+    img.onload = () => {
+      fitCanvases(img.naturalWidth, img.naturalHeight);
+      vctx.drawImage(img, 0, 0, view.width, view.height);
+      const r = analyze(true, false);
+      const sees = r.mag > SENS[$('sens').value];
+      log(`Foto: magenta ${(r.mag * 100).toFixed(2)} %, filas ${(r.dark * 100).toFixed(0)} % → ${sees ? 'detecta magenta' : 'sin magenta'}${r.dark < 0.03 ? ', sumario vacío' : ''}`);
+      setState(sees ? 'Magenta detectado' : 'Sin magenta', sees ? 'bad' : 'ok');
+      URL.revokeObjectURL(img.src);
+    };
+    img.src = URL.createObjectURL(f);
+  };
+
+  // ---------- Selección de zona ----------
+  let drag = null;
+  function pt(ev) { const b = ov.getBoundingClientRect(); return { x: Math.min(1, Math.max(0, (ev.clientX - b.left) / b.width)), y: Math.min(1, Math.max(0, (ev.clientY - b.top) / b.height)) }; }
+  ov.addEventListener('pointerdown', ev => { drag = pt(ev); ov.setPointerCapture(ev.pointerId); });
+  ov.addEventListener('pointermove', ev => {
+    if (!drag) return; const p = pt(ev);
+    roi = { x: Math.min(drag.x, p.x), y: Math.min(drag.y, p.y), w: Math.abs(p.x - drag.x), h: Math.abs(p.y - drag.y) };
+    drawOverlay(null);
+  });
+  ov.addEventListener('pointerup', () => {
+    drag = null;
+    if (roi.w < 0.03 || roi.h < 0.03) { roi = { x: 0.05, y: 0.15, w: 0.9, h: 0.7 }; }
+    try { localStorage.setItem('vigia-roi', JSON.stringify(roi)); } catch (e) {}
+    ackLevel = null; // recalcula el nivel base con la nueva zona
+    $('hint').hidden = true; drawOverlay(null); log('Zona del sumario actualizada');
+  });
+
+  // Vista inicial
+  vctx.fillStyle = '#11151c'; vctx.fillRect(0, 0, view.width, view.height);
+  vctx.fillStyle = '#8b93a3'; vctx.font = '18px system-ui'; vctx.textAlign = 'center';
+  vctx.fillText('Toca "Iniciar vigilancia" o "Probar con foto"', view.width / 2, view.height / 2);
+  drawOverlay(null);
+})();
+</script>
+</body>
+</html>

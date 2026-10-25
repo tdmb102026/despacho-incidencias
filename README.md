@@ -12,3 +12,9 @@ Al abrir la app se elige el modo. **Sin IA** es el lector del celular de siempre
 manda las fotos a Claude (Anthropic) a través de un Apps Script de Google que guarda la clave de API, revisa las
 contraseñas de los operadores y cuenta las fotos de cada uno (`ia-servidor/`, pasos en `ia-servidor/LEEME.md`).
 Los campos, el mensaje de WhatsApp y la fila de la bitácora son los mismos en los dos modos.
+
+## Vigía de Alarmas
+
+`vigia/` es una página aparte para el celular: mira el sumario de alarmas de OASIS con la cámara y suena solo
+con alarmas magenta nuevas (aperturas), con el sumario vacío (pérdida de AOR) o si la cámara se congela.
+No se conecta al SCADA. Se abre en el mismo enlace de GitHub Pages agregando `vigia/` al final.
