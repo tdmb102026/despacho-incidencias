@@ -73,9 +73,26 @@ let iaUbic = "";
 const ubicKey = u => squash(String(u).split(" - ")[0]);
 function iaPrims(out) {
   const ubic = out.ubicacion || "", com = out.comentario || "";
-  const learned = ubic ? store.get("ubic-primario", {})[ubicKey(ubic)] : "";
+  const learned = ubic ? iaUbicPri(ubic) : "";
   const found = parseOCR(ubic + "\n" + com, com).prims;
   return [learned, out.primario, ...found].filter((v, i, l) => v && priName(v) && l.indexOf(v) === i);
+}
+// El callcenter escribe la misma ubicación de muchas formas («ULBA BANOS», «ulba-baños», «ULBA BAÑOS SECTOR…»):
+// si no está igual, se toma la aprendida que más se parece o que la contiene
+// Cómo suena: B=V, Z=S, C(e,i)=S, LL=Y, la H no suena
+const sonido = k => k.replace(/V/g, "B").replace(/Z/g, "S").replace(/C(?=[EI])/g, "S").replace(/LL/g, "Y").replace(/H/g, "");
+function iaUbicPri(ubic) {
+  const m = store.get("ubic-primario", {}), ks = [ubicKey(ubic), squash(ubic)].filter(Boolean);
+  for (const k of ks) if (m[k]) return m[k];
+  let best = "", top = 0;
+  for (const k of ks) for (const [K, pri] of Object.entries(m)) {
+    const a = sonido(k), b = sonido(K);
+    let sim = parecido(a, b);
+    if (Math.min(a.length, b.length) >= 6 && (a.includes(b) || b.includes(a))) sim = Math.max(sim, 0.9);
+    // en nombres cortos un error ya cambia de lugar («SANTANA» no es «YANTANA»)
+    if (sim >= (Math.max(a.length, b.length) < 10 ? 0.95 : 0.8) && sim > top) { top = sim; best = pri; }
+  }
+  return best;
 }
 function iaLearn() {
   const pri = priName($("f-pri").value), k = ubicKey(iaUbic);
