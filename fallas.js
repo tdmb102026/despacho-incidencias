@@ -461,7 +461,10 @@ $("fx-eq").addEventListener("blur", () => { setTimeout(() => { $("fx-s-eq").hidd
 // Se recuerda qué equipo es cada código del SCADA (01AGORCPRI93-13_8R020 → Rec. MACHAY) para la próxima vez
 function learnCode(f) {
   if (!f.hist || !f.hist.point || !f.eq) return;
-  const m = store.get("codigos", {}); m[f.hist.point] = [f.eq.tipo, f.eq.nombre]; store.set("codigos", m);
+  const m = store.get("codigos", {}), k = f.hist.point;
+  if (m[k] && m[k][0] === f.eq.tipo && m[k][1] === f.eq.nombre) return;
+  m[k] = [f.eq.tipo, f.eq.nombre]; store.set("codigos", m);
+  iaSubir([{ t: "codigo", k, v: f.eq.tipo + "|" + f.eq.nombre }]);
 }
 
 function note(t) { $("fx-note").textContent = t; $("fx-note").hidden = false; }

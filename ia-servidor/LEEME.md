@@ -31,6 +31,10 @@ En la pestaña «Claves», una fila por operador:
 - El Motorola lo usan todos los turnos: la contraseña vale 8 horas o hasta tocar **Salir (fin de turno)**, y la app
   muestra arriba quién está usando la IA. Así las fotos se cuentan al operador del turno.
 
+## Lo aprendido (pestaña «Aprendido»)
+
+La hoja crea sola la pestaña **Aprendido**: qué primario va con cada ubicación (`ubic`) y qué equipo es cada código del SCADA (`codigo`). Cada celular sube lo que aprende al compartir o copiar una incidencia, o al elegir el equipo de una falla, y baja lo de todos al entrar con contraseña. Si una fila está mal, se corrige la columna «Es» o se borra la fila.
+
 ## Modelo
 
 `MODELO` al inicio del script. Por defecto `claude-haiku-5-5` (el más barato). Si lee mal las fotos, cambiarlo a

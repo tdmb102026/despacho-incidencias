@@ -56,6 +56,43 @@ function contar_(op) {
   } finally { lock.releaseLock(); }
 }
 
+// ---------- lo aprendido, compartido entre celulares ----------
+// Pestaña «Aprendido»: qué primario va con cada ubicación y qué equipo es cada código del SCADA.
+// Cada celular sube lo que aprende al compartir o copiar, y baja lo de todos al entrar con contraseña.
+const APRENDIDO = "Aprendido";
+function aprendido_() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let h = ss.getSheetByName(APRENDIDO);
+  if (!h) {
+    h = ss.insertSheet(APRENDIDO);
+    h.appendRow(["Tipo", "Dato", "Es", "Operador", "Fecha"]); h.setFrozenRows(1); h.getRange(1, 1, 1, 5).setFontWeight("bold");
+    h.getRange("B:C").setNumberFormat("@");
+  }
+  return h;
+}
+// cosas: [{ t: "ubic" | "codigo", k, v }]. Si el dato ya está, se cambia lo que «Es»
+function aprender_(cosas, op) {
+  cosas = (cosas || []).filter(c => c && /^(ubic|codigo)$/.test(c.t) && c.k && c.v).slice(0, 200);
+  if (!cosas.length) return;
+  const lock = LockService.getScriptLock(); lock.waitLock(10000);
+  try {
+    const h = aprendido_(), n = h.getLastRow() - 1;
+    const filas = n > 0 ? h.getRange(2, 1, n, 2).getDisplayValues() : [];
+    for (const c of cosas) {
+      const k = String(c.k).slice(0, 100), v = String(c.v).slice(0, 100);
+      const i = filas.findIndex(f => f[0] === c.t && f[1] === k);
+      const fila = [c.t, k, v, op.nombre, new Date()];
+      if (i >= 0) h.getRange(i + 2, 1, 1, 5).setValues([fila]);
+      else { h.appendRow(fila); filas.push([c.t, k]); }
+    }
+  } finally { lock.releaseLock(); }
+}
+function bajar_() {
+  const h = aprendido_(), n = h.getLastRow() - 1, r = { ubic: {}, codigo: {} };
+  if (n > 0) for (const [t, k, v] of h.getRange(2, 1, n, 3).getDisplayValues()) if (r[t] && k && v) r[t][k] = v;
+  return r;
+}
+
 // ---------- lo que se le pide a la IA ----------
 const SIS_INC = `Lees fotos tomadas con un celular a la pantalla del ADMS de EEASA (Ambato, Ecuador), módulo "Gestión de incidencias".
 La pantalla puede tener trama (moiré), reflejos o estar inclinada o girada: lee con cuidado cada dígito y no inventes. Si un dato no se ve, déjalo vacío.
@@ -136,7 +173,9 @@ function doPost(e) {
     const q = JSON.parse(e.postData.contents);
     const op = operador_(q.clave);
     if (!op) return json_({ ok: false, error: "contraseña" });
-    if (q.tipo === "probar") return json_({ ok: true, operador: op.nombre });
+    if (q.tipo === "probar") return json_({ ok: true, operador: op.nombre, aprendido: bajar_() });
+    if (q.tipo === "bajar") return json_({ ok: true, aprendido: bajar_() });
+    if (q.tipo === "aprender") { aprender_(q.cosas, op); return json_({ ok: true }); }
     const p = pedido_(q.tipo, q.listas || {});
     if (!p || !q.imagen) return json_({ ok: false, error: "pedido" });
     const r = claude_(p, q.imagen);
