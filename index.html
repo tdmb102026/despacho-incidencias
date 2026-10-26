@@ -171,6 +171,11 @@ details pre{white-space:pre-wrap;word-break:break-word;font-family:var(--mono);f
     <button class="big primary" id="go-inc"><strong>Incidencias</strong><span>Foto de Gestión de incidencias → mensaje para WhatsApp</span></button>
     <button class="big" id="go-fal"><strong>Fallas internas</strong><span>Fotos del SCADA → fila para la Bitácora</span></button>
     <p class="tip" id="home-tip">Toma la foto de cerca, con la fila de la llamada y el recuadro del Comentario visibles.</p>
+    <details id="apr"><summary id="apr-sum">Lo aprendido en este celular</summary>
+      <p>Para pasarlo a otro celular: exporta, mándalo por WhatsApp y en el otro celular toca Importar y elige el archivo.</p>
+      <div style="display:flex;gap:20px"><button class="back" id="apr-exp" type="button">Exportar</button><label class="back" style="cursor:pointer">Importar<input type="file" id="apr-imp" accept=".txt,text/plain,application/json" hidden></label></div>
+      <p id="apr-note" hidden></p>
+    </details>
   </section>
 
   <section id="inc" hidden>

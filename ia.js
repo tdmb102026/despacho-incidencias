@@ -190,6 +190,36 @@ function readSlotIA(f, n, file) {
   }).catch(e => { f.read[n] = e.ia ? e.message : "No se pudo leer. Vuelve a intentarlo."; if (cur === f) drawSlots(); });
 }
 
+// ---------- exportar e importar lo aprendido (también sirve en Sin IA) ----------
+function aprCuenta() {
+  const u = Object.keys(store.get("ubic-primario", {})).length, c = Object.keys(store.get("codigos", {})).length;
+  $("apr-sum").textContent = `Lo aprendido en este celular (${u} ubicaciones, ${c} equipos)`;
+}
+$("apr").addEventListener("toggle", aprCuenta);
+$("apr-exp").onclick = async () => {
+  const txt = JSON.stringify({ despacho: "aprendido", ubic: store.get("ubic-primario", {}), codigos: store.get("codigos", {}) });
+  const file = new File([txt], "aprendido-despacho.txt", { type: "text/plain" });
+  try {
+    if (navigator.canShare && navigator.canShare({ files: [file] })) return await navigator.share({ files: [file] });
+  } catch (e) { if (e.name === "AbortError") return; }
+  const a = document.createElement("a"); a.href = URL.createObjectURL(file); a.download = file.name; a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+};
+$("apr-imp").onchange = async e => {
+  const f = e.target.files[0]; e.target.value = "";
+  if (!f) return;
+  let d;
+  try { d = JSON.parse(await f.text()); } catch {}
+  if (!d || d.despacho !== "aprendido") { $("apr-note").textContent = "Ese archivo no es de lo aprendido."; $("apr-note").hidden = false; return; }
+  const u = store.get("ubic-primario", {}), c = store.get("codigos", {});
+  d.ubic = Object.fromEntries(Object.entries(d.ubic || {}).filter(([, v]) => typeof v === "string"));
+  d.codigos = Object.fromEntries(Object.entries(d.codigos || {}).filter(([, v]) => Array.isArray(v) && typeof v[1] === "string"));
+  const nu = Object.keys(d.ubic).filter(k => !u[k]).length, nc = Object.keys(d.codigos).filter(k => !c[k]).length;
+  store.set("ubic-primario", { ...u, ...d.ubic }); store.set("codigos", { ...c, ...d.codigos });
+  $("apr-note").textContent = `Listo: ${nu} ubicaciones y ${nc} equipos nuevos.`; $("apr-note").hidden = false;
+  aprCuenta();
+};
+
 // ---------- pantallas: elegir modo y contraseña ----------
 function setModo(ia) {
   modoIA = ia;
