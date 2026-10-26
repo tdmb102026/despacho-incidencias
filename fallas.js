@@ -378,6 +378,33 @@ function fillTime(k) {
 // y en Despacho de incidencias la INC y el teléfono; y por nombre el primario y el equipo de la falla
 const MIC_OK = { "fx-inc": x => /^110\d{7,8}$/.test(x), "f-inc": x => x.length >= 6, "f-tel": x => /^09\d{8}$/.test(x) };
 const Speech = window.SpeechRecognition || window.webkitSpeechRecognition;
+// Nombre dicho → el de la lista que más se parece (solo se acepta un nombre de la lista).
+// pref: prefiere esos (p. ej. reconectadores si dijo «reconectador»)
+function micPick(said, list, pref = () => true) {
+  let best = null, top = 0;
+  for (const t of said) for (const x of list) {
+    if (!t) continue;
+    const exact = t.includes(x.k) || (t.length >= 4 && x.k.includes(t));
+    const sim = exact ? 1 + x.k.length / 100 : parecido(t, x.k);
+    const score = sim + (pref(x) ? 0.05 : 0);
+    if (sim >= 0.75 && score > top) { top = score; best = x; }
+  }
+  return best;
+}
+// 0..1: 1 - distancia de edición / largo mayor ("guambalo" ~ "huambalo")
+function parecido(a, b) {
+  let prev = Array.from({ length: b.length + 1 }, (_, j) => j);
+  for (let i = 1; i <= a.length; i++) {
+    const row = [i];
+    for (let j = 1; j <= b.length; j++) row[j] = Math.min(prev[j] + 1, row[j - 1] + 1, prev[j - 1] + (a[i - 1] !== b[j - 1]));
+    prev = row;
+  }
+  return 1 - prev[b.length] / Math.max(a.length, b.length, 1);
+}
+function micMiss(flag, e) {
+  $(flag).textContent = `No encontré «${e.results[0][0].transcript}» en la lista. Dilo otra vez o escribe y elige.`;
+  $(flag).hidden = false;
+}
 const DIGITOS = { cero: 0, uno: 1, una: 1, dos: 2, tres: 3, cuatro: 4, cinco: 5, seis: 6, siete: 7, ocho: 8, nueve: 9 };
 for (const b of document.querySelectorAll("[data-mic]")) {
   if (!Speech) continue;
@@ -388,21 +415,18 @@ for (const b of document.querySelectorAll("[data-mic]")) {
     rec.onresult = e => {
       // Primario: el nombre dicho se busca en la lista de alimentadores ("manzana de oro" → Manzana de Oro)
       if (b.dataset.mic === "f-pri") {
-        const said = [...e.results[0]].map(a => squash(a.transcript));
-        const hit = said.map(t => PRIS.filter(x => t.includes(x.k) || (t.length >= 4 && x.k.includes(t))).sort((x, y) => y.k.length - x.k.length)[0]).find(Boolean);
+        const hit = micPick([...e.results[0]].map(a => squash(a.transcript)), PRIS);
         if (hit) pickPri(hit.name);
-        else { inp.value = e.results[0][0].transcript; suggest(); refresh(); }
+        else micMiss("w-pri", e);
         return;
       }
       // Equipo de la falla: alimentador o reconectador ("reconectador Pomona" → Rec. POMONA)
       if (b.dataset.mic === "fx-eq") {
         const said = [...e.results[0]].map(a => squash(a.transcript));
         const rec = said.some(t => /RECONECTADOR|^REC/.test(t));
-        const hit = said.map(t => t.replace(/RECONECTADOR|^REC/g, "")).map(t => EQUIPOS
-          .filter(x => t && (t.includes(x.k) || (t.length >= 4 && x.k.includes(t))))
-          .sort((x, y) => ((y.tipo === "rec") === rec) - ((x.tipo === "rec") === rec) || y.k.length - x.k.length)[0]).find(Boolean);
+        const hit = micPick(said.map(t => t.replace(/RECONECTADOR|^REC/g, "")), EQUIPOS, x => (x.tipo === "rec") === rec);
         if (hit) { cur.eq = hit; learnCode(cur); changed(); }
-        else { inp.value = e.results[0][0].transcript; suggestEq(); }
+        else micMiss("fx-w-eq", e);
         return;
       }
       const alts = [...e.results[0]].map(a => norm(a.transcript).toLowerCase().replace(/[a-z]+/g, w => DIGITOS[w] ?? " ").replace(/\D/g, ""));
