@@ -78,9 +78,28 @@ function iaPrims(out) {
   return [learned, out.primario, ...found].filter((v, i, l) => v && priName(v) && l.indexOf(v) === i);
 }
 function iaLearn() {
-  const pri = priName($("f-pri").value);
-  if (!modoIA || !iaUbic || !ubicKey(iaUbic) || !pri) return;
-  const m = store.get("ubic-primario", {}); m[ubicKey(iaUbic)] = pri; store.set("ubic-primario", m);
+  const pri = priName($("f-pri").value), k = ubicKey(iaUbic);
+  if (!modoIA || !k || !pri) return;
+  const m = store.get("ubic-primario", {});
+  if (m[k] === pri) return;
+  m[k] = pri; store.set("ubic-primario", m);
+  iaSubir([{ t: "ubic", k, v: pri }]);
+}
+// Lo aprendido también va a la hoja de fer (pestaña «Aprendido»), así lo saben todos los celulares
+function iaSubir(cosas) {
+  if (cosas.length && modoIA && iaClave()) iaPost({ clave: iaClave(), tipo: "aprender", cosas }).catch(() => {});
+}
+// Junta lo de la hoja con lo del celular; lo que este celular sabía y la hoja no, se sube
+function iaBajar(apr) {
+  if (!apr) return;
+  const u = store.get("ubic-primario", {}), c = store.get("codigos", {});
+  iaSubir([
+    ...Object.entries(u).filter(([k]) => !apr.ubic[k]).map(([k, v]) => ({ t: "ubic", k, v })),
+    ...Object.entries(c).filter(([k]) => !apr.codigo[k]).map(([k, v]) => ({ t: "codigo", k, v: v.join("|") })),
+  ].slice(0, 200));
+  store.set("ubic-primario", { ...u, ...apr.ubic });
+  for (const [k, v] of Object.entries(apr.codigo || {})) { const [tipo, nombre] = v.split("|"); if (nombre) c[k] = [tipo, nombre]; }
+  store.set("codigos", c);
 }
 $("share").addEventListener("click", iaLearn);
 $("copy").addEventListener("click", iaLearn);
@@ -191,7 +210,11 @@ setInterval(iaQueda, 20e3);
 document.addEventListener("visibilitychange", iaQueda);
 $("go-sin").onclick = () => { setModo(false); history.pushState({ v: "home" }, ""); show("home"); };
 $("go-con").onclick = () => {
-  if (iaClave() && iaUrl()) { setModo(true); history.pushState({ v: "home" }, ""); show("home"); return; }
+  if (iaClave() && iaUrl()) {
+    setModo(true); history.pushState({ v: "home" }, ""); show("home");
+    iaPost({ clave: iaClave(), tipo: "bajar" }).then(j => iaBajar(j.aprendido)).catch(() => {});
+    return;
+  }
   history.pushState({ v: "clave" }, ""); show("clave");
 };
 $("go-modo").onclick = () => history.back();
@@ -210,7 +233,7 @@ $("ia-entrar").onclick = async () => {
   try {
     const j = await iaPost({ clave, tipo: "probar" });
     iaPut("ia-clave", clave); iaPut("ia-nombre", j.operador || ""); iaPut("ia-hasta", String(Date.now() + TURNO)); $("ia-pass").value = ""; $("ia-note").hidden = true;
-    setModo(true); history.replaceState({ v: "home" }, ""); show("home");
+    setModo(true); history.replaceState({ v: "home" }, ""); show("home"); iaBajar(j.aprendido);
   } catch (e) {
     $("ia-note").textContent = e.ia ? (e.message.startsWith("Tu contraseña") ? "Esa contraseña no vale. Revísala o pídela a fer." : e.message) : "No se pudo revisar la contraseña.";
   } finally { $("ia-entrar").disabled = false; }
