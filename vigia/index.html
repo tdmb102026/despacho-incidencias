@@ -70,6 +70,7 @@ details li { margin-bottom: 6px; }
   <div class="row">
     <button id="start" class="primary">Iniciar vigilancia</button>
     <button id="stop" disabled>Detener</button>
+    <button id="refocus">Reenfocar</button>
     <button id="test">Probar sonido</button>
     <label class="btn">Probar con foto<input id="photo" type="file" accept="image/*" hidden></label>
   </div>
@@ -114,6 +115,7 @@ details li { margin-bottom: 6px; }
       <li>Si el sumario se queda en blanco más de 10 segundos, suena un aviso naranja de posible pérdida de AOR.</li>
       <li>Si casi todas las filas del sumario son rojas durante 5 segundos, suena un aviso rojo. Al silenciarlo, repite a los 5 minutos si sigue igual.</li>
       <li>Si la cámara se congela, también avisa.</li>
+      <li>Al silenciar, la cámara se reabre sola para volver a enfocar. Si ves la imagen borrosa, toca <b>Reenfocar</b>.</li>
     </ol>
     <p class="sub">Es una ayuda, no reemplaza al SCADA. Mantén el volumen de la consola bajo, no en cero.</p>
   </details>
@@ -196,7 +198,7 @@ details li { margin-bottom: 6px; }
     $('alarm').classList.toggle('red', kind === 'red');
     $('alarm').hidden = false;
     pattern(sound);
-    siren = setInterval(() => { pattern(sound); if (navigator.vibrate) navigator.vibrate([300, 150, 300]); }, 1600);
+    siren = setInterval(() => pattern(sound), 1600); // sin vibración: mueve el celular y lo desenfoca
     log(`ALARMA: ${title}`);
   }
   $('ack').onclick = () => {
@@ -206,19 +208,24 @@ details li { margin-bottom: 6px; }
     if (alarmKind === 'frozen') frozenSince = Date.now() + 50000;
     if (alarmKind === 'red') redSince = Date.now() + 300000; // repite a los 5 min si sigue lleno de rojas
     log('Silenciada'); alarmKind = null;
+    setTimeout(refocus, 1000); // después de una alarma la cámara suele quedar desenfocada
   };
   $('test').onclick = () => { ensureAudio(); pattern('open'); setTimeout(() => pattern('red'), 1300); setTimeout(() => pattern('aor'), 2700); };
 
   // ---------- Análisis de imagen ----------
   let lastMag = 0;
+  // Clasifica cada línea de píxeles de la zona por su color dominante. Una apertura es una
+  // franja magenta de al menos 3 líneas. Una franja magenta pegada a rojo de un lado y
+  // violeta del otro es la mezcla de dos filas vecinas desenfocadas, no una apertura.
   function classify(img, wid, hei, drawMask) {
-    const d = img.data; let mag = 0, dark = 0, n = 0, sig = 0;
+    const d = img.data; let dark = 0, n = 0, sig = 0;
     let redLines = 0, textLines = 0;
     const x0 = Math.floor(roi.x * wid), y0 = Math.floor(roi.y * hei);
     const x1 = Math.floor((roi.x + roi.w) * wid), y1 = Math.floor((roi.y + roi.h) * hei);
-    const mask = drawMask ? octx.createImageData(wid, hei) : null;
+    const rows = Math.max(0, y1 - y0);
+    const lm = new Int32Array(rows), kind = new Int8Array(rows); // 0 nada, 1 magenta, 2 rojo, 3 violeta, 4 otro
     for (let y = y0; y < y1; y++) {
-      let lr = 0, lt = 0;
+      let lr = 0, lt = 0, lmag = 0, lv = 0;
       for (let x = x0; x < x1; x++) {
         const i = (y * wid + x) * 4, r = d[i], g = d[i + 1], b = d[i + 2];
         const mx = Math.max(r, g, b), mn = Math.min(r, g, b), c = mx - mn;
@@ -230,15 +237,47 @@ details li { margin-bottom: 6px; }
         if (mx === r) h = ((g - b) / c + 6) % 6; else if (mx === g) h = (b - r) / c + 2; else h = (r - g) / c + 4;
         h *= 60;
         lt++;
-        if (h > 275 && h < 340) {
-          mag++;
-          if (mask) { mask.data[i] = 255; mask.data[i + 1] = 255; mask.data[i + 2] = 255; mask.data[i + 3] = 255; }
-        } else if (h < 15 || h > 345) lr++;
+        if (h > 285 && h < 335) lmag++;
+        else if (h < 15 || h > 345) lr++;
+        else if (h > 225 && h <= 285) lv++;
       }
+      const k = y - y0;
+      lm[k] = lmag;
       // Una línea de píxeles cuenta como texto si tiene al menos 3 píxeles de color
-      if (lt >= 3) { textLines++; if (lr >= 3 && lr * 2 >= lt) redLines++; }
+      if (lt >= 3) {
+        textLines++;
+        if (lr >= 3 && lr * 2 >= lt) redLines++;
+        kind[k] = lmag >= 4 && lmag * 2 >= lt ? 1 : lr * 2 >= lt ? 2 : lv * 2 >= lt ? 3 : 4;
+      }
     }
-    const lines = Math.max(1, y1 - y0);
+    const near = (from, to, want) => { for (let k = Math.max(0, from); k <= Math.min(rows - 1, to); k++) if (kind[k] === want) return true; return false; };
+    let mag = 0;
+    const keep = new Uint8Array(rows);
+    for (let k = 0; k < rows;) {
+      if (kind[k] !== 1) { k++; continue; }
+      let j = k; while (j < rows && kind[j] === 1) j++;
+      const blend = (near(k - 3, k - 1, 2) && near(j, j + 2, 3)) || (near(k - 3, k - 1, 3) && near(j, j + 2, 2));
+      if (j - k >= 3 && !blend) for (let q = k; q < j; q++) { keep[q] = 1; mag += lm[q]; }
+      k = j;
+    }
+    let mask = null;
+    if (drawMask) {
+      mask = octx.createImageData(wid, hei);
+      for (let k = 0; k < rows; k++) {
+        if (!keep[k]) continue;
+        const y = y0 + k;
+        for (let x = x0; x < x1; x++) {
+          const i = (y * wid + x) * 4, r = d[i], g = d[i + 1], b = d[i + 2];
+          const mx = Math.max(r, g, b), c = mx - Math.min(r, g, b);
+          if (mx < 100 || c / mx < 0.45) continue;
+          let h;
+          if (mx === r) h = ((g - b) / c + 6) % 6; else if (mx === g) h = (b - r) / c + 2; else h = (r - g) / c + 4;
+          h *= 60;
+          if (h > 285 && h < 335) { mask.data[i] = 255; mask.data[i + 1] = 255; mask.data[i + 2] = 255; mask.data[i + 3] = 255; }
+        }
+      }
+    }
+    const lines = Math.max(1, rows);
     return { mag: n ? mag / n : 0, dark: n ? dark / n : 0, sig, mask,
       red: textLines ? redLines / textLines : 0, text: textLines / lines };
   }
@@ -299,11 +338,37 @@ details li { margin-bottom: 6px; }
   }
 
   function tick() {
-    if (!running || cam.readyState < 2) return;
+    if (!running || refocusing || cam.readyState < 2) return;
     if (view.width !== W || Math.abs(view.height - Math.round(W * cam.videoHeight / cam.videoWidth)) > 1) fitCanvases(cam.videoWidth, cam.videoHeight);
     vctx.drawImage(cam, 0, 0, view.width, view.height);
     analyze(true, true);
   }
+
+  // Abre la cámara pidiendo enfoque automático continuo (si el celular lo permite).
+  async function openCam() {
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false });
+    } catch (e) { setState('Cámara bloqueada', 'bad'); log('No se pudo abrir la cámara: ' + e.message); return false; }
+    const track = stream.getVideoTracks()[0];
+    try {
+      const caps = track.getCapabilities ? track.getCapabilities() : {};
+      if (caps.focusMode && caps.focusMode.includes('continuous')) await track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] });
+    } catch (e) {}
+    cam.srcObject = stream; await cam.play();
+    return true;
+  }
+  // Reabre la cámara para que vuelva a enfocar como al inicio, sin perder la zona marcada.
+  let refocusing = false;
+  async function refocus() {
+    if (!running || refocusing) return;
+    refocusing = true;
+    if (stream) stream.getTracks().forEach(t => t.stop());
+    await new Promise(r => setTimeout(r, 300));
+    if (await openCam()) { lastSig = null; frozenSince = null; ackLevel = null; risingCount = 0; log('Cámara reenfocada'); }
+    else raise('frozen', 'CÁMARA DETENIDA', 'No se pudo reabrir la cámara. Toca Detener e Iniciar vigilancia.');
+    refocusing = false;
+  }
+  $('refocus').onclick = refocus;
 
   async function start() {
     ensureAudio();
@@ -312,10 +377,7 @@ details li { margin-bottom: 6px; }
       log('Este navegador no permite la cámara desde este archivo. Prueba con Chrome o ábrelo desde una dirección https.');
       return;
     }
-    try {
-      stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false });
-    } catch (e) { setState('Cámara bloqueada', 'bad'); log('No se pudo abrir la cámara: ' + e.message); return; }
-    cam.srcObject = stream; await cam.play();
+    if (!(await openCam())) return;
     running = true; ackLevel = null; risingCount = 0; emptySince = null; redSince = null; lastSig = null; frozenSince = null;
     timer = setInterval(tick, 400);
     await keepAwake();
