@@ -115,7 +115,7 @@ details li { margin-bottom: 6px; }
       <li>Si el sumario se queda en blanco más de 10 segundos, suena un aviso naranja de posible pérdida de AOR.</li>
       <li>Si casi todas las filas del sumario son rojas durante 5 segundos, suena un aviso rojo. Al silenciarlo, repite a los 5 minutos si sigue igual.</li>
       <li>Si la cámara se congela, también avisa.</li>
-      <li>Al silenciar, la cámara se reabre sola para volver a enfocar. Si ves la imagen borrosa, toca <b>Reenfocar</b>.</li>
+      <li>La cámara enfoca sola los primeros segundos y luego deja el enfoque fijo. Al silenciar se reabre y vuelve a enfocar. Si ves la imagen borrosa, toca <b>Reenfocar</b>.</li>
     </ol>
     <p class="sub">Es una ayuda, no reemplaza al SCADA. Mantén el volumen de la consola bajo, no en cero.</p>
   </details>
@@ -344,18 +344,33 @@ details li { margin-bottom: 6px; }
     analyze(true, true);
   }
 
-  // Abre la cámara pidiendo enfoque automático continuo (si el celular lo permite).
+  // Abre la cámara, la deja enfocar sola unos segundos y luego fija el enfoque, para que no
+  // quede "buscando" (adelante y atrás) frente a la pantalla del SCADA.
+  let focusTimer = null;
   async function openCam() {
     try {
       stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false });
     } catch (e) { setState('Cámara bloqueada', 'bad'); log('No se pudo abrir la cámara: ' + e.message); return false; }
+    cam.srcObject = stream; await cam.play();
     const track = stream.getVideoTracks()[0];
+    clearTimeout(focusTimer);
+    focusTimer = setTimeout(() => lockFocus(track), 2500);
+    return true;
+  }
+  async function lockFocus(track) {
+    if (track.readyState !== 'live') return;
     try {
       const caps = track.getCapabilities ? track.getCapabilities() : {};
-      if (caps.focusMode && caps.focusMode.includes('continuous')) await track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] });
+      const modes = caps.focusMode || [];
+      const dist = (track.getSettings() || {}).focusDistance;
+      if (modes.includes('manual') && typeof dist === 'number') {
+        await track.applyConstraints({ advanced: [{ focusMode: 'manual', focusDistance: dist }] });
+        log('Enfoque fijado');
+      } else if (modes.includes('single-shot')) {
+        await track.applyConstraints({ advanced: [{ focusMode: 'single-shot' }] });
+        log('Enfoque fijado');
+      }
     } catch (e) {}
-    cam.srcObject = stream; await cam.play();
-    return true;
   }
   // Reabre la cámara para que vuelva a enfocar como al inicio, sin perder la zona marcada.
   let refocusing = false;
