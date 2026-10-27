@@ -70,7 +70,6 @@ details li { margin-bottom: 6px; }
   <div class="row">
     <button id="start" class="primary">Iniciar vigilancia</button>
     <button id="stop" disabled>Detener</button>
-    <button id="refocus">Reenfocar</button>
     <button id="test">Probar sonido</button>
     <label class="btn">Probar con foto<input id="photo" type="file" accept="image/*" hidden></label>
   </div>
@@ -115,7 +114,6 @@ details li { margin-bottom: 6px; }
       <li>Si el sumario se queda en blanco más de 10 segundos, suena un aviso naranja de posible pérdida de AOR.</li>
       <li>Si casi todas las filas del sumario son rojas durante 5 segundos, suena un aviso rojo. Al silenciarlo, repite a los 5 minutos si sigue igual.</li>
       <li>Si la cámara se congela, también avisa.</li>
-      <li>La cámara enfoca sola los primeros segundos y luego deja el enfoque fijo. Al silenciar se reabre y vuelve a enfocar. Si ves la imagen borrosa, toca <b>Reenfocar</b>.</li>
     </ol>
     <p class="sub">Es una ayuda, no reemplaza al SCADA. Mantén el volumen de la consola bajo, no en cero.</p>
   </details>
@@ -208,7 +206,7 @@ details li { margin-bottom: 6px; }
     if (alarmKind === 'frozen') frozenSince = Date.now() + 50000;
     if (alarmKind === 'red') redSince = Date.now() + 300000; // repite a los 5 min si sigue lleno de rojas
     log('Silenciada'); alarmKind = null;
-    setTimeout(refocus, 1000); // después de una alarma la cámara suele quedar desenfocada
+    setTimeout(reopenCam, 1000); // vuelve a abrir la cámara como al entrar a la app
   };
   $('test').onclick = () => { ensureAudio(); pattern('open'); setTimeout(() => pattern('red'), 1300); setTimeout(() => pattern('aor'), 2700); };
 
@@ -338,52 +336,31 @@ details li { margin-bottom: 6px; }
   }
 
   function tick() {
-    if (!running || refocusing || cam.readyState < 2) return;
+    if (!running || reopening || cam.readyState < 2) return;
     if (view.width !== W || Math.abs(view.height - Math.round(W * cam.videoHeight / cam.videoWidth)) > 1) fitCanvases(cam.videoWidth, cam.videoHeight);
     vctx.drawImage(cam, 0, 0, view.width, view.height);
     analyze(true, true);
   }
 
-  // Abre la cámara, la deja enfocar sola unos segundos y luego fija el enfoque, para que no
-  // quede "buscando" (adelante y atrás) frente a la pantalla del SCADA.
-  let focusTimer = null;
+  // Abre la cámara tal como al entrar a la app (sin ajustes de enfoque).
   async function openCam() {
     try {
       stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false });
     } catch (e) { setState('Cámara bloqueada', 'bad'); log('No se pudo abrir la cámara: ' + e.message); return false; }
     cam.srcObject = stream; await cam.play();
-    const track = stream.getVideoTracks()[0];
-    clearTimeout(focusTimer);
-    focusTimer = setTimeout(() => lockFocus(track), 2500);
     return true;
   }
-  async function lockFocus(track) {
-    if (track.readyState !== 'live') return;
-    try {
-      const caps = track.getCapabilities ? track.getCapabilities() : {};
-      const modes = caps.focusMode || [];
-      const dist = (track.getSettings() || {}).focusDistance;
-      if (modes.includes('manual') && typeof dist === 'number') {
-        await track.applyConstraints({ advanced: [{ focusMode: 'manual', focusDistance: dist }] });
-        log('Enfoque fijado');
-      } else if (modes.includes('single-shot')) {
-        await track.applyConstraints({ advanced: [{ focusMode: 'single-shot' }] });
-        log('Enfoque fijado');
-      }
-    } catch (e) {}
-  }
-  // Reabre la cámara para que vuelva a enfocar como al inicio, sin perder la zona marcada.
-  let refocusing = false;
-  async function refocus() {
-    if (!running || refocusing) return;
-    refocusing = true;
+  // Después de una alarma, cierra y vuelve a abrir la cámara igual que al entrar a la app.
+  let reopening = false;
+  async function reopenCam() {
+    if (!running || reopening) return;
+    reopening = true;
     if (stream) stream.getTracks().forEach(t => t.stop());
-    await new Promise(r => setTimeout(r, 300));
-    if (await openCam()) { lastSig = null; frozenSince = null; ackLevel = null; risingCount = 0; log('Cámara reenfocada'); }
+    await new Promise(r => setTimeout(r, 500));
+    if (await openCam()) { lastSig = null; frozenSince = null; ackLevel = null; risingCount = 0; log('Cámara reabierta'); }
     else raise('frozen', 'CÁMARA DETENIDA', 'No se pudo reabrir la cámara. Toca Detener e Iniciar vigilancia.');
-    refocusing = false;
+    reopening = false;
   }
-  $('refocus').onclick = refocus;
 
   async function start() {
     ensureAudio();
