@@ -112,7 +112,7 @@ details li { margin-bottom: 6px; }
       <li>Deja la pantalla del celular encendida y conectado al cargador.</li>
       <li>Cuando aparezca una alarma magenta nueva, suena y la pantalla parpadea. Toca <b>Silenciar</b>; vuelve a sonar solo si aparece otra magenta.</li>
       <li>Si el sumario se queda en blanco más de 10 segundos, suena un aviso naranja de posible pérdida de AOR.</li>
-      <li>Si casi todas las filas del sumario son rojas durante 5 segundos, suena un aviso rojo. Al silenciarlo, repite a los 5 minutos si sigue igual.</li>
+      <li>Si el recuadro marcado se llena de filas hasta abajo y casi todas son rojas durante 5 segundos, suena un aviso rojo. Al silenciarlo, repite a los 5 minutos si sigue igual.</li>
       <li>Si la cámara se congela, también avisa.</li>
     </ol>
     <p class="sub">Es una ayuda, no reemplaza al SCADA. Mantén el volumen de la consola bajo, no en cero.</p>
@@ -217,7 +217,7 @@ details li { margin-bottom: 6px; }
   // violeta del otro es la mezcla de dos filas vecinas desenfocadas, no una apertura.
   function classify(img, wid, hei, drawMask) {
     const d = img.data; let dark = 0, n = 0, sig = 0;
-    let redLines = 0, textLines = 0;
+    let redLines = 0, textLines = 0, lastText = -1;
     const x0 = Math.floor(roi.x * wid), y0 = Math.floor(roi.y * hei);
     const x1 = Math.floor((roi.x + roi.w) * wid), y1 = Math.floor((roi.y + roi.h) * hei);
     const rows = Math.max(0, y1 - y0);
@@ -243,7 +243,7 @@ details li { margin-bottom: 6px; }
       lm[k] = lmag;
       // Una línea de píxeles cuenta como texto si tiene al menos 3 píxeles de color
       if (lt >= 3) {
-        textLines++;
+        textLines++; lastText = k;
         if (lr >= 3 && lr * 2 >= lt) redLines++;
         kind[k] = lmag >= 4 && lmag * 2 >= lt ? 1 : lr * 2 >= lt ? 2 : lv * 2 >= lt ? 3 : 4;
       }
@@ -277,7 +277,9 @@ details li { margin-bottom: 6px; }
     }
     const lines = Math.max(1, rows);
     return { mag: n ? mag / n : 0, dark: n ? dark / n : 0, sig, mask,
-      red: textLines ? redLines / textLines : 0, text: textLines / lines };
+      red: textLines ? redLines / textLines : 0, text: textLines / lines,
+      // Las filas llegan hasta la parte de abajo de la zona marcada (el recuadro está lleno)
+      full: rows > 0 && lastText >= rows * 0.8 };
   }
 
   function drawOverlay(mask) {
@@ -314,7 +316,7 @@ details li { margin-bottom: 6px; }
     else risingCount = 0;
 
     // Sumario lleno de rojas: casi todas las filas con texto son rojas durante 5 s
-    if ($('redOn').checked && r.red > 0.7 && r.text > 0.15) {
+    if ($('redOn').checked && r.red > 0.7 && r.text > 0.15 && r.full) {
       if (!redSince) redSince = now;
       else if (now - redSince > 5000) raise('red', 'SUMARIO EN ROJO', 'Casi todas las alarmas del sumario son rojas.');
     } else if (redSince && redSince <= now) redSince = null;
@@ -417,7 +419,7 @@ details li { margin-bottom: 6px; }
       vctx.drawImage(img, 0, 0, view.width, view.height);
       const r = analyze(true, false);
       const sees = r.mag > SENS[$('sens').value];
-      log(`Foto: magenta ${(r.mag * 100).toFixed(2)} %, rojas ${(r.red * 100).toFixed(0)} %, filas ${(r.dark * 100).toFixed(0)} % → ${sees ? 'detecta magenta' : 'sin magenta'}${r.dark < 0.03 ? ', sumario vacío' : ''}`);
+      log(`Foto: magenta ${(r.mag * 100).toFixed(2)} %, rojas ${(r.red * 100).toFixed(0)} %, filas ${(r.dark * 100).toFixed(0)} % → ${sees ? 'detecta magenta' : 'sin magenta'}${r.dark < 0.03 ? ', sumario vacío' : ''}${r.red > 0.7 && r.text > 0.15 && r.full ? ', SUMARIO EN ROJO' : ''}`);
       setState(sees ? 'Magenta detectado' : 'Sin magenta', sees ? 'bad' : 'ok');
       URL.revokeObjectURL(img.src);
     };
