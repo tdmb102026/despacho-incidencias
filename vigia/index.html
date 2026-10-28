@@ -283,11 +283,13 @@ details li { margin-bottom: 6px; }
       const k = y - y0;
       lm[k] = lmag;
       cnt[k] = lt;
-      if (lt >= minT) {
-        occ[k] = 1; textLines++;
+      // Solo cuentan como fila las líneas rojas, verdes o magenta/violeta. Otros colores
+      // (por ejemplo el gris azulado del fondo vacío según la cámara) no son filas.
+      const cls = lt < minT ? 0 : lr * 2 >= lt ? 2 : lg * 2 >= lt ? 3 : (lmag + lv) * 2 >= lt ? 1 : 0;
+      if (cls) {
+        occ[k] = cls; textLines++;
         if (++run >= 3) lastText = k; // ignora puntitos sueltos: hacen falta 3 líneas seguidas
-        if (lr * 2 >= lt) { redLines++; occ[k] = 2; }
-        else if (lg * 2 >= lt) { greenLines++; occ[k] = 3; }
+        if (cls === 2) redLines++; else if (cls === 3) greenLines++;
       } else run = 0;
       if (lt >= 3) {
         kind[k] = lmag >= 4 && lmag * 2 >= lt ? 1 : lr * 2 >= lt ? 2 : lv * 2 >= lt ? 3 : lg * 2 >= lt ? 5 : 4;
