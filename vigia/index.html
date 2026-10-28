@@ -30,6 +30,21 @@ button:disabled { opacity: .45; cursor: default; }
 .stage { position: relative; background: #000; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; touch-action: none; }
 .stage canvas { display: block; width: 100%; height: auto; }
 #overlay { position: absolute; inset: 0; width: 100%; height: 100%; }
+.frame { position: relative; }
+#roiBox { position: absolute; border: 3px dashed var(--mag); pointer-events: none; }
+/* Durante la vigilancia la cámara ocupa toda la pantalla y los datos van encima. */
+.hud { display: none; }
+body.live { overflow: hidden; }
+body.live .hint { display: none; }
+body.live .stage { position: fixed; inset: 0; z-index: 10; border: 0; border-radius: 0; display: flex; align-items: center; justify-content: center; }
+body.live .frame canvas { width: 100%; height: 100%; }
+body.live .hud { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; position: absolute; z-index: 2;
+  top: env(safe-area-inset-top, 0px); left: 0; right: 0; padding: 6px max(10px, env(safe-area-inset-right, 0px)) 6px max(10px, env(safe-area-inset-left, 0px));
+  background: rgba(0,0,0,.6); font: 600 13px var(--mono); font-variant-numeric: tabular-nums; }
+.hud button { padding: 6px 10px; font-size: 13px; }
+.hud .sep { flex: 1; }
+.hud label { display: flex; gap: 6px; align-items: center; font-family: var(--font); }
+.hud input[type=range] { width: 120px; accent-color: var(--mag); }
 .hint { position: absolute; left: 8px; bottom: 8px; background: rgba(0,0,0,.7); padding: 4px 8px; border-radius: 6px; font-size: 12px; color: var(--muted); }
 .status { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; }
 .tile { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; }
@@ -75,9 +90,20 @@ details li { margin-bottom: 6px; }
   </div>
 
   <div class="stage" id="stage">
-    <canvas id="view" width="640" height="360"></canvas>
-    <canvas id="overlay" width="640" height="360"></canvas>
-    <div class="hint" id="hint">Arrastra el dedo desde la esquina de arriba a la izquierda de la lista hasta la de abajo a la derecha</div>
+    <div class="frame" id="frame">
+      <canvas id="view" width="640" height="360"></canvas>
+      <canvas id="overlay" width="640" height="360"></canvas>
+      <div id="roiBox"></div>
+      <div class="hint" id="hint">Arrastra el dedo desde la esquina de arriba a la izquierda de la lista hasta la de abajo a la derecha</div>
+    </div>
+    <div class="hud" id="hud">
+      <span id="hudSt"></span>
+      <span id="hudVals">–</span>
+      <span class="sep"></span>
+      <label id="focusBox" hidden><input type="checkbox" id="focusFix"> Enfoque fijo <input type="range" id="focusDist"></label>
+      <button id="hudTest">Probar sonido</button>
+      <button id="hudStop">Detener</button>
+    </div>
   </div>
 
   <div class="status">
@@ -114,6 +140,7 @@ details li { margin-bottom: 6px; }
       <li>Si el sumario se queda en blanco más de 10 segundos, suena un aviso naranja de posible pérdida de AOR.</li>
       <li>Si el recuadro marcado se llena de filas hasta abajo y casi todas son rojas durante 5 segundos, suena un aviso rojo. Al silenciarlo, repite a los 5 minutos si sigue igual.</li>
       <li>Si la cámara se congela, también avisa.</li>
+      <li>Al iniciar, la cámara ocupa toda la pantalla y los datos quedan arriba. Si tu celular lo permite, ahí aparece <b>Enfoque fijo</b>: actívalo y mueve la barra hasta que el sumario se vea nítido. Así deja de enfocar "adelante y atrás".</li>
     </ol>
     <p class="sub">Es una ayuda, no reemplaza al SCADA. Mantén el volumen de la consola bajo, no en cero.</p>
   </details>
@@ -154,7 +181,7 @@ details li { margin-bottom: 6px; }
     const t = new Date().toLocaleTimeString('es-EC');
     $('log').textContent = `${t}  ${msg}\n` + $('log').textContent.slice(0, 4000);
   }
-  function setState(text, cls) { $('st').innerHTML = `<span class="pill ${cls}">${text}</span>`; }
+  function setState(text, cls) { $('st').innerHTML = $('hudSt').innerHTML = `<span class="pill ${cls}">${text}</span>`; }
 
   // ---------- Sonido ----------
   let master = null;
@@ -285,9 +312,12 @@ details li { margin-bottom: 6px; }
   function drawOverlay(mask) {
     octx.clearRect(0, 0, ov.width, ov.height);
     if (mask && $('maskOn').checked) octx.putImageData(mask, 0, 0);
-    octx.strokeStyle = '#ff2bd6'; octx.lineWidth = 3; octx.setLineDash([10, 6]);
-    octx.strokeRect(roi.x * ov.width, roi.y * ov.height, roi.w * ov.width, roi.h * ov.height);
-    octx.setLineDash([]);
+    placeRoi();
+  }
+  // El recuadro de la zona es un elemento aparte (no se dibuja en el lienzo), así no parpadea.
+  function placeRoi() {
+    const b = $('roiBox').style;
+    b.left = roi.x * 100 + '%'; b.top = roi.y * 100 + '%'; b.width = roi.w * 100 + '%'; b.height = roi.h * 100 + '%';
   }
 
   function analyze(drawMask, live) {
@@ -297,6 +327,7 @@ details li { margin-bottom: 6px; }
     $('mg').textContent = (r.mag * 100).toFixed(2) + ' %';
     $('dk').textContent = (r.dark * 100).toFixed(0) + ' %';
     $('rd').textContent = (r.red * 100).toFixed(0) + ' %';
+    $('hudVals').textContent = `Magenta ${(r.mag * 100).toFixed(2)} % · Rojas ${(r.red * 100).toFixed(0)} % · Filas ${(r.dark * 100).toFixed(0)} % · Pantalla: ${$('wl').textContent}`;
     drawOverlay(r.mask);
     if (!live) return r;
 
@@ -335,7 +366,17 @@ details li { margin-bottom: 6px; }
   function fitCanvases(w, h) {
     const H = Math.round(W * h / w);
     view.width = ov.width = W; view.height = ov.height = H;
+    layoutLive();
   }
+  // En pantalla completa, la imagen se agranda lo más posible sin deformarse.
+  function layoutLive() {
+    const f = $('frame').style;
+    if (!document.body.classList.contains('live')) { f.width = f.height = ''; return; }
+    const st = $('stage'), ar = view.width / view.height;
+    const w = Math.min(st.clientWidth, st.clientHeight * ar);
+    f.width = Math.floor(w) + 'px'; f.height = Math.floor(w / ar) + 'px';
+  }
+  window.addEventListener('resize', layoutLive);
 
   function tick() {
     if (!running || reopening || cam.readyState < 2) return;
@@ -350,8 +391,38 @@ details li { margin-bottom: 6px; }
       stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false });
     } catch (e) { setState('Cámara bloqueada', 'bad'); log('No se pudo abrir la cámara: ' + e.message); return false; }
     cam.srcObject = stream; await cam.play();
+    setupFocus(stream.getVideoTracks()[0]);
     return true;
   }
+  // Enfoque fijo opcional: solo aparece si el celular lo permite. Apagado, la cámara
+  // enfoca sola como siempre. Encendido, se usa la distancia de la barra.
+  let focusPref = { fixed: false, dist: null };
+  try { const f = JSON.parse(localStorage.getItem('vigia-focus')); if (f) focusPref = f; } catch (e) {}
+  let focusTrack = null;
+  function setupFocus(track) {
+    focusTrack = track;
+    let caps = {};
+    try { caps = track.getCapabilities ? track.getCapabilities() : {}; } catch (e) {}
+    const ok = caps.focusMode && caps.focusMode.includes('manual') && caps.focusDistance;
+    $('focusBox').hidden = !ok;
+    if (!ok) return;
+    const r = $('focusDist'), fd = caps.focusDistance;
+    r.min = fd.min; r.max = fd.max; r.step = fd.step || (fd.max - fd.min) / 100;
+    r.value = focusPref.dist != null ? focusPref.dist : (track.getSettings().focusDistance ?? fd.min);
+    $('focusFix').checked = focusPref.fixed;
+    if (focusPref.fixed) applyFocus();
+  }
+  async function applyFocus() {
+    if (!focusTrack) return;
+    try {
+      if ($('focusFix').checked) await focusTrack.applyConstraints({ advanced: [{ focusMode: 'manual', focusDistance: Number($('focusDist').value) }] });
+      else if ((focusTrack.getCapabilities().focusMode || []).includes('continuous')) await focusTrack.applyConstraints({ advanced: [{ focusMode: 'continuous' }] });
+    } catch (e) {}
+    focusPref = { fixed: $('focusFix').checked, dist: Number($('focusDist').value) };
+    try { localStorage.setItem('vigia-focus', JSON.stringify(focusPref)); } catch (e) {}
+  }
+  $('focusFix').onchange = applyFocus;
+  $('focusDist').oninput = () => { $('focusFix').checked = true; applyFocus(); };
   // Después de una alarma, cierra y vuelve a abrir la cámara igual que al entrar a la app.
   let reopening = false;
   async function reopenCam() {
@@ -376,6 +447,9 @@ details li { margin-bottom: 6px; }
     timer = setInterval(tick, 400);
     await keepAwake();
     $('start').disabled = true; $('stop').disabled = false;
+    document.body.classList.add('live');
+    try { if (document.documentElement.requestFullscreen) await document.documentElement.requestFullscreen(); } catch (e) {}
+    layoutLive();
     setState('Vigilando', 'ok'); log('Vigilancia iniciada');
   }
   function stop() {
@@ -384,6 +458,9 @@ details li { margin-bottom: 6px; }
     try { wakeLock && wakeLock.release(); } catch (e) {}
     wakeLock = null; $('wl').textContent = '–';
     $('start').disabled = false; $('stop').disabled = true;
+    document.body.classList.remove('live');
+    try { if (document.fullscreenElement) document.exitFullscreen(); } catch (e) {}
+    layoutLive();
     setState('Detenido', 'warn'); log('Vigilancia detenida');
   }
   // Mantener la pantalla encendida mientras vigila. El sistema puede soltar el bloqueo
@@ -404,7 +481,8 @@ details li { margin-bottom: 6px; }
   setInterval(keepAwake, 15000);
   document.addEventListener('click', keepAwake);
 
-  $('start').onclick = start; $('stop').onclick = stop;
+  $('start').onclick = start; $('stop').onclick = stop; $('hudStop').onclick = stop;
+  $('hudTest').onclick = () => $('test').onclick();
   document.addEventListener('visibilitychange', async () => {
     if (running && document.visibilityState === 'visible') keepAwake();
     if (running && document.visibilityState === 'hidden') log('La app quedó en segundo plano: puede dejar de vigilar.');
