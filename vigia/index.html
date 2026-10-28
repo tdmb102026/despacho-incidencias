@@ -111,6 +111,7 @@ details li { margin-bottom: 6px; }
     <div class="tile"><b>Magenta en zona</b><span id="mg">–</span></div>
     <div class="tile"><b>Filas rojas</b><span id="rd">–</span></div>
     <div class="tile"><b>Filas con datos</b><span id="dk">–</span></div>
+    <div class="tile"><b>Filas verdes</b><span id="gr">–</span></div>
     <div class="tile"><b>Último cuadro</b><span id="fr">–</span></div>
     <div class="tile"><b>Pantalla</b><span id="wl">–</span></div>
   </div>
@@ -248,9 +249,9 @@ details li { margin-bottom: 6px; }
     const x0 = Math.floor(roi.x * wid), y0 = Math.floor(roi.y * hei);
     const x1 = Math.floor((roi.x + roi.w) * wid), y1 = Math.floor((roi.y + roi.h) * hei);
     const rows = Math.max(0, y1 - y0);
-    const lm = new Int32Array(rows), kind = new Int8Array(rows); // 0 nada, 1 magenta, 2 rojo, 3 violeta, 4 otro
+    const lm = new Int32Array(rows), kind = new Int8Array(rows); // 0 nada, 1 magenta, 2 rojo, 3 violeta, 4 otro, 5 verde
     for (let y = y0; y < y1; y++) {
-      let lr = 0, lt = 0, lmag = 0, lv = 0;
+      let lr = 0, lt = 0, lmag = 0, lv = 0, lg = 0;
       for (let x = x0; x < x1; x++) {
         const i = (y * wid + x) * 4, r = d[i], g = d[i + 1], b = d[i + 2];
         const mx = Math.max(r, g, b), mn = Math.min(r, g, b), c = mx - mn;
@@ -265,6 +266,7 @@ details li { margin-bottom: 6px; }
         if (h > 285 && h < 335) lmag++;
         else if (h < 15 || h > 345) lr++;
         else if (h > 225 && h <= 285) lv++;
+        else if (h > 75 && h < 165) lg++;
       }
       const k = y - y0;
       lm[k] = lmag;
@@ -272,7 +274,7 @@ details li { margin-bottom: 6px; }
       if (lt >= 3) {
         textLines++; lastText = k;
         if (lr >= 3 && lr * 2 >= lt) redLines++;
-        kind[k] = lmag >= 4 && lmag * 2 >= lt ? 1 : lr * 2 >= lt ? 2 : lv * 2 >= lt ? 3 : 4;
+        kind[k] = lmag >= 4 && lmag * 2 >= lt ? 1 : lr * 2 >= lt ? 2 : lv * 2 >= lt ? 3 : lg * 2 >= lt ? 5 : 4;
       }
     }
     const near = (from, to, want) => { for (let k = Math.max(0, from); k <= Math.min(rows - 1, to); k++) if (kind[k] === want) return true; return false; };
@@ -302,9 +304,19 @@ details li { margin-bottom: 6px; }
         }
       }
     }
+    // Filas del sumario: cada franja seguida de líneas con texto es una fila; se cuenta como verde si la mayoría de sus líneas lo son
+    let bands = 0, green = 0;
+    for (let k = 0; k < rows;) {
+      if (!kind[k]) { k++; continue; }
+      let j = k, g = 0; while (j < rows && kind[j]) { if (kind[j] === 5) g++; j++; }
+      if (j - k >= 2) { bands++; if (g * 2 > j - k) green++; }
+      k = j;
+    }
     const lines = Math.max(1, rows);
     return { mag: n ? mag / n : 0, dark: n ? dark / n : 0, sig, mask,
-      red: textLines ? redLines / textLines : 0, text: textLines / lines,
+      red: textLines ? redLines / textLines : 0, text: textLines / lines, bands, green,
+      // Hasta dónde llegan las filas dentro del recuadro (0 = vacío, 1 = lleno hasta abajo)
+      filled: rows > 0 ? (lastText + 1) / rows : 0,
       // Las filas llegan hasta la parte de abajo de la zona marcada (el recuadro está lleno)
       full: rows > 0 && lastText >= rows * 0.8 };
   }
@@ -325,9 +337,10 @@ details li { margin-bottom: 6px; }
     const r = classify(img, view.width, view.height, drawMask);
     lastMag = r.mag;
     $('mg').textContent = (r.mag * 100).toFixed(2) + ' %';
-    $('dk').textContent = (r.dark * 100).toFixed(0) + ' %';
+    $('dk').textContent = (r.filled * 100).toFixed(0) + ' %';
+    $('gr').textContent = r.green;
     $('rd').textContent = (r.red * 100).toFixed(0) + ' %';
-    $('hudVals').textContent = `Magenta ${(r.mag * 100).toFixed(2)} % · Rojas ${(r.red * 100).toFixed(0)} % · Filas ${(r.dark * 100).toFixed(0)} % · Pantalla: ${$('wl').textContent}`;
+    $('hudVals').textContent = `Magenta ${(r.mag * 100).toFixed(2)} % · Rojas ${(r.red * 100).toFixed(0)} % · Filas ${(r.filled * 100).toFixed(0)} % · Verdes ${r.green} · Pantalla: ${$('wl').textContent}`;
     drawOverlay(r.mask);
     if (!live) return r;
 
@@ -352,8 +365,8 @@ details li { margin-bottom: 6px; }
       else if (now - redSince > 5000) raise('red', 'SUMARIO EN ROJO', 'Casi todas las alarmas del sumario son rojas.');
     } else if (redSince && redSince <= now) redSince = null;
 
-    // Pérdida de AOR: zona casi sin filas oscuras durante 10 s
-    if ($('aorOn').checked && r.dark < 0.03) {
+    // Pérdida de AOR: zona sin filas oscuras y sin texto de colores durante 10 s
+    if ($('aorOn').checked && r.dark < 0.03 && r.text < 0.03) {
       if (!emptySince) emptySince = now;
       else if (now - emptySince > 10000) raise('aor', 'SUMARIO VACÍO', 'Posible pérdida de AOR. Revisa Control y Vista en "yes".');
     } else if (emptySince && emptySince <= now) emptySince = null;
@@ -497,7 +510,7 @@ details li { margin-bottom: 6px; }
       vctx.drawImage(img, 0, 0, view.width, view.height);
       const r = analyze(true, false);
       const sees = r.mag > SENS[$('sens').value];
-      log(`Foto: magenta ${(r.mag * 100).toFixed(2)} %, rojas ${(r.red * 100).toFixed(0)} %, filas ${(r.dark * 100).toFixed(0)} % → ${sees ? 'detecta magenta' : 'sin magenta'}${r.dark < 0.03 ? ', sumario vacío' : ''}${r.red > 0.7 && r.text > 0.15 && r.full ? ', SUMARIO EN ROJO' : ''}`);
+      log(`Foto: magenta ${(r.mag * 100).toFixed(2)} %, rojas ${(r.red * 100).toFixed(0)} %, filas ${(r.filled * 100).toFixed(0)} %, verdes ${r.green} → ${sees ? 'detecta magenta' : 'sin magenta'}${r.dark < 0.03 && r.text < 0.03 ? ', sumario vacío' : ''}${r.red > 0.7 && r.text > 0.15 && r.full ? ', SUMARIO EN ROJO' : ''}`);
       setState(sees ? 'Magenta detectado' : 'Sin magenta', sees ? 'bad' : 'ok');
       URL.revokeObjectURL(img.src);
     };
