@@ -46,12 +46,12 @@ const IA_ERRORES = {
   "rechazo": "La IA no quiso leer esta foto. Prueba con otra.",
 };
 // Pregunta al servidor. Va como texto plano para que el navegador no pida permiso aparte (CORS)
-async function iaPost(body) {
+async function iaPost(body, signal) {
   const url = iaUrl();
   if (!url) throw iaErr("Falta el enlace del servidor de la IA.");
   if (!navigator.onLine) throw iaErr("Sin internet: la IA necesita señal. Usa el modo Sin IA.");
   let j;
-  try { j = await (await fetch(url, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify(body) })).json(); }
+  try { j = await (await fetch(url, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify(body), signal })).json(); }
   catch { throw iaErr("No se pudo conectar con la IA (¿sin señal?). Vuelve a intentarlo."); }
   if (!j.ok) {
     if (j.error === "contraseña") iaPut("ia-hasta", "");
@@ -59,9 +59,9 @@ async function iaPost(body) {
   }
   return j;
 }
-async function iaRead(file, tipo, listas) {
+async function iaRead(file, tipo, listas, signal) {
   const { data, canvas } = await iaImage(file);
-  const j = await iaPost({ clave: iaClave(), tipo, imagen: data, listas });
+  const j = await iaPost({ clave: iaClave(), tipo, imagen: data, listas }, signal);
   return { out: j.datos || {}, canvas };
 }
 
@@ -120,8 +120,8 @@ function iaBajar(apr) {
 }
 $("share").addEventListener("click", iaLearn);
 $("copy").addEventListener("click", iaLearn);
-async function iaReadInc(file) {
-  const { out, canvas } = await iaRead(file, "inc", { motivos: MOTIVOS.map(m => m[0]), primarios: ALIM.map(a => a[1]) });
+async function iaReadInc(file, signal) {
+  const { out, canvas } = await iaRead(file, "inc", { motivos: MOTIVOS.map(m => m[0]), primarios: ALIM.map(a => a[1]) }, signal);
   const six = d => String(d).replace(/\D/g, "").slice(-6);
   const tabs = (out.pestanas || []).map(six).filter(d => d.length === 6);
   const inc = six(out.activa || "") || tabs.at(-1) || "";
@@ -130,14 +130,15 @@ async function iaReadInc(file) {
     phones, giro: out.giro || 0, canvas, raw: JSON.stringify(out, null, 1) };
 }
 async function processFileIA(file) {
-  photoFile = file; msgEdited = false;
+  photoFile = file; const my = ++lectura; iaAbort = new AbortController();
   $("thumb").src = URL.createObjectURL(file);
   $("prev").hidden = false; $("result").hidden = true; $("note").hidden = true;
   $("barfill").style.width = "10%"; $("status").textContent = "Enviando la foto a la IA…";
   // Barra que avanza sola mientras la IA lee (no hay progreso real)
   let pct = 10; const tick = setInterval(() => { pct += (95 - pct) * 0.06; $("barfill").style.width = pct + "%"; if (pct > 30) $("status").textContent = "La IA está leyendo la foto…"; }, 400);
   try {
-    const p = await iaReadInc(file);
+    const p = await iaReadInc(file, iaAbort.signal);
+    if (my !== lectura) return;
     // La foto que se comparte va derecha (horizontal), como la vio la IA
     if (p.giro) {
       const blob = await new Promise(r => iaRotate(p.canvas, p.giro).toBlob(r, "image/jpeg", 0.9));
@@ -146,7 +147,7 @@ async function processFileIA(file) {
     $("raw").textContent = p.raw;
     showResult(p);
   } catch (err) {
-    $("status").textContent = err.ia ? err.message : "No se pudo leer la foto. Vuelve a intentarlo.";
+    if (my === lectura) $("status").textContent = err.ia ? err.message : "No se pudo leer la foto. Vuelve a intentarlo.";
   } finally { clearInterval(tick); }
 }
 
