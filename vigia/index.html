@@ -32,6 +32,9 @@ button:disabled { opacity: .45; cursor: default; }
 #overlay { position: absolute; inset: 0; width: 100%; height: 100%; }
 .frame { position: relative; }
 #roiBox { position: absolute; border: 3px dashed var(--mag); pointer-events: none; }
+#roiBox i { position: absolute; width: 18px; height: 18px; background: var(--mag); border-radius: 50%; }
+#roiBox i:nth-child(1) { left: -11px; top: -11px; } #roiBox i:nth-child(2) { right: -11px; top: -11px; }
+#roiBox i:nth-child(3) { left: -11px; bottom: -11px; } #roiBox i:nth-child(4) { right: -11px; bottom: -11px; }
 /* Durante la vigilancia la cámara ocupa toda la pantalla y los datos van encima. */
 .hud { display: none; }
 body.live { overflow: hidden; }
@@ -42,6 +45,8 @@ body.live .hud { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: cen
   top: env(safe-area-inset-top, 0px); left: 0; right: 0; padding: 6px max(10px, env(safe-area-inset-right, 0px)) 6px max(10px, env(safe-area-inset-left, 0px));
   background: rgba(0,0,0,.6); font: 600 13px var(--mono); font-variant-numeric: tabular-nums; }
 .hud button { padding: 6px 10px; font-size: 13px; }
+/* La barra deja pasar los toques al recuadro, salvo en sus botones */
+body.live .hud { pointer-events: none; } .hud button { pointer-events: auto; }
 .hud .sep { flex: 1; }
 .hud label { display: flex; gap: 6px; align-items: center; font-family: var(--font); }
 .hud input[type=range] { width: 120px; accent-color: var(--mag); }
@@ -93,7 +98,7 @@ details li { margin-bottom: 6px; }
     <div class="frame" id="frame">
       <canvas id="view" width="640" height="360"></canvas>
       <canvas id="overlay" width="640" height="360"></canvas>
-      <div id="roiBox"></div>
+      <div id="roiBox"><i></i><i></i><i></i><i></i></div>
       <div class="hint" id="hint">Arrastra el dedo desde la esquina de arriba a la izquierda de la lista hasta la de abajo a la derecha</div>
     </div>
     <div class="hud" id="hud">
@@ -142,7 +147,7 @@ details li { margin-bottom: 6px; }
       <li>Si el sumario se queda en blanco más de 10 segundos, suena un aviso naranja de posible pérdida de AOR.</li>
       <li>Si el recuadro marcado se llena de filas hasta abajo y casi todas son rojas durante 5 segundos, suena un aviso rojo. Al silenciarlo, repite a los 5 minutos si sigue igual.</li>
       <li>Si la cámara se congela, también avisa.</li>
-      <li>Al iniciar, la cámara ocupa toda la pantalla y los datos quedan arriba. Si la imagen se ve borrosa o enfoca "adelante y atrás", toca <b>Reenfocar</b>: es lo mismo que tapar y destapar la cámara con la mano.</li>
+      <li>Al iniciar, la cámara ocupa toda la pantalla y los datos quedan arriba. Para ajustar el recuadro: arrastra uno de los puntos de las esquinas, arrastra desde adentro para moverlo, o pon dos dedos en esquinas opuestas. Si la imagen se ve borrosa o enfoca "adelante y atrás", toca <b>Reenfocar</b>: es lo mismo que tapar y destapar la cámara con la mano.</li>
     </ol>
     <p class="sub">Es una ayuda, no reemplaza al SCADA. Mantén el volumen de la consola bajo, no en cero.</p>
   </details>
@@ -506,22 +511,45 @@ details li { margin-bottom: 6px; }
   };
 
   // ---------- Selección de zona ----------
-  let drag = null;
-  function pt(ev) { const b = ov.getBoundingClientRect(); return { x: Math.min(1, Math.max(0, (ev.clientX - b.left) / b.width)), y: Math.min(1, Math.max(0, (ev.clientY - b.top) / b.height)) }; }
-  ov.addEventListener('pointerdown', ev => { drag = pt(ev); ov.setPointerCapture(ev.pointerId); });
-  ov.addEventListener('pointermove', ev => {
-    if (!drag) return; const p = pt(ev);
-    roi = { x: Math.min(drag.x, p.x), y: Math.min(drag.y, p.y), w: Math.abs(p.x - drag.x), h: Math.abs(p.y - drag.y) };
-    drawOverlay(null);
+  // Un dedo: arrastrar una esquina (los puntos) la estira, arrastrar dentro mueve el recuadro
+  // y arrastrar fuera dibuja uno nuevo. Dos dedos: el recuadro va de un dedo al otro.
+  const fingers = new Map(); let drag = null, changed = false;
+  function pt(ev) { const b = ov.getBoundingClientRect(); return { x: Math.min(1, Math.max(0, (ev.clientX - b.left) / b.width)), y: Math.min(1, Math.max(0, (ev.clientY - b.top) / b.height)), px: b.width, py: b.height }; }
+  const box = (a, c) => ({ x: Math.min(a.x, c.x), y: Math.min(a.y, c.y), w: Math.abs(c.x - a.x), h: Math.abs(c.y - a.y) });
+  ov.addEventListener('pointerdown', ev => {
+    try { ov.setPointerCapture(ev.pointerId); } catch (e) {}
+    const p = pt(ev); fingers.set(ev.pointerId, p);
+    if (fingers.size >= 2) { drag = { mode: 'two' }; return; }
+    const tol = 40; // píxeles de pantalla alrededor de cada esquina
+    const corners = [[roi.x, roi.y], [roi.x + roi.w, roi.y], [roi.x, roi.y + roi.h], [roi.x + roi.w, roi.y + roi.h]];
+    const ci = corners.findIndex(([cx, cy]) => Math.abs(cx - p.x) * p.px < tol && Math.abs(cy - p.y) * p.py < tol);
+    if (ci >= 0) drag = { mode: 'corner', fixed: { x: corners[3 - ci][0], y: corners[3 - ci][1] } };
+    else if (p.x > roi.x && p.x < roi.x + roi.w && p.y > roi.y && p.y < roi.y + roi.h) drag = { mode: 'move', from: p, start: { ...roi } };
+    else drag = { mode: 'new', fixed: p };
   });
-  ov.addEventListener('pointerup', () => {
+  ov.addEventListener('pointermove', ev => {
+    if (!drag || !fingers.has(ev.pointerId)) return;
+    const p = pt(ev); fingers.set(ev.pointerId, p);
+    if (drag.mode === 'two') { const [a, c] = [...fingers.values()]; if (c) roi = box(a, c); }
+    else if (drag.mode === 'move') {
+      roi = { ...drag.start, x: Math.min(1 - drag.start.w, Math.max(0, drag.start.x + p.x - drag.from.x)), y: Math.min(1 - drag.start.h, Math.max(0, drag.start.y + p.y - drag.from.y)) };
+    } else roi = box(drag.fixed, p);
+    changed = true; drawOverlay(null);
+  });
+  function release(ev) {
+    fingers.delete(ev.pointerId);
+    if (fingers.size) return; // espera a que se levanten todos los dedos
     drag = null;
+    if (!changed) return;
+    changed = false;
     if (roi.w < 0.03 || roi.h < 0.03) { roi = { x: 0.05, y: 0.15, w: 0.9, h: 0.7 }; }
     try { localStorage.setItem('vigia-roi', JSON.stringify(roi)); } catch (e) {}
     rowPitch = null;
     ackLevel = null; // recalcula el nivel base con la nueva zona
     $('hint').hidden = true; drawOverlay(null); log('Zona del sumario actualizada');
-  });
+  }
+  ov.addEventListener('pointerup', release);
+  ov.addEventListener('pointercancel', release);
 
   // Vista inicial
   vctx.fillStyle = '#11151c'; vctx.fillRect(0, 0, view.width, view.height);
