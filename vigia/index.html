@@ -100,7 +100,7 @@ details li { margin-bottom: 6px; }
       <span id="hudSt"></span>
       <span id="hudVals">–</span>
       <span class="sep"></span>
-      <label id="focusBox" hidden><input type="checkbox" id="focusFix"> Enfoque fijo <input type="range" id="focusDist"></label>
+      <button id="hudFocus">Reenfocar</button>
       <button id="hudTest">Probar sonido</button>
       <button id="hudStop">Detener</button>
     </div>
@@ -108,10 +108,11 @@ details li { margin-bottom: 6px; }
 
   <div class="status">
     <div class="tile"><b>Estado</b><span id="st"><span class="pill warn">Detenido</span></span></div>
-    <div class="tile"><b>Magenta en zona</b><span id="mg">–</span></div>
     <div class="tile"><b>Filas rojas</b><span id="rd">–</span></div>
-    <div class="tile"><b>Filas con datos</b><span id="dk">–</span></div>
     <div class="tile"><b>Filas verdes</b><span id="gr">–</span></div>
+    <div class="tile"><b>Filas magenta</b><span id="mr">–</span></div>
+    <div class="tile"><b>Recuadro lleno</b><span id="dk">–</span></div>
+    <div class="tile"><b>Magenta (detalle)</b><span id="mg">–</span></div>
     <div class="tile"><b>Último cuadro</b><span id="fr">–</span></div>
     <div class="tile"><b>Pantalla</b><span id="wl">–</span></div>
   </div>
@@ -141,7 +142,7 @@ details li { margin-bottom: 6px; }
       <li>Si el sumario se queda en blanco más de 10 segundos, suena un aviso naranja de posible pérdida de AOR.</li>
       <li>Si el recuadro marcado se llena de filas hasta abajo y casi todas son rojas durante 5 segundos, suena un aviso rojo. Al silenciarlo, repite a los 5 minutos si sigue igual.</li>
       <li>Si la cámara se congela, también avisa.</li>
-      <li>Al iniciar, la cámara ocupa toda la pantalla y los datos quedan arriba. Si tu celular lo permite, ahí aparece <b>Enfoque fijo</b>: actívalo y mueve la barra hasta que el sumario se vea nítido. Así deja de enfocar "adelante y atrás".</li>
+      <li>Al iniciar, la cámara ocupa toda la pantalla y los datos quedan arriba. Si la imagen se ve borrosa o enfoca "adelante y atrás", toca <b>Reenfocar</b>: es lo mismo que tapar y destapar la cámara con la mano.</li>
     </ol>
     <p class="sub">Es una ayuda, no reemplaza al SCADA. Mantén el volumen de la consola bajo, no en cero.</p>
   </details>
@@ -243,12 +244,15 @@ details li { margin-bottom: 6px; }
   // Clasifica cada línea de píxeles de la zona por su color dominante. Una apertura es una
   // franja magenta de al menos 3 líneas. Una franja magenta pegada a rojo de un lado y
   // violeta del otro es la mezcla de dos filas vecinas desenfocadas, no una apertura.
+  let rowPitch = null;
   function classify(img, wid, hei, drawMask) {
     const d = img.data; let dark = 0, n = 0, sig = 0;
-    let redLines = 0, textLines = 0, lastText = -1;
+    let redLines = 0, greenLines = 0, textLines = 0, lastText = -1, run = 0;
     const x0 = Math.floor(roi.x * wid), y0 = Math.floor(roi.y * hei);
     const x1 = Math.floor((roi.x + roi.w) * wid), y1 = Math.floor((roi.y + roi.h) * hei);
     const rows = Math.max(0, y1 - y0);
+    const minT = Math.max(3, 0.04 * (x1 - x0)); // una línea es parte de una fila si al menos el 4 % de su ancho tiene color
+    const cnt = new Float32Array(rows), occ = new Uint8Array(rows);
     const lm = new Int32Array(rows), kind = new Int8Array(rows); // 0 nada, 1 magenta, 2 rojo, 3 violeta, 4 otro, 5 verde
     for (let y = y0; y < y1; y++) {
       let lr = 0, lt = 0, lmag = 0, lv = 0, lg = 0;
@@ -270,10 +274,14 @@ details li { margin-bottom: 6px; }
       }
       const k = y - y0;
       lm[k] = lmag;
-      // Una línea de píxeles cuenta como texto si tiene al menos 3 píxeles de color
+      cnt[k] = lt;
+      if (lt >= minT) {
+        occ[k] = 1; textLines++;
+        if (++run >= 3) lastText = k; // ignora puntitos sueltos: hacen falta 3 líneas seguidas
+        if (lr * 2 >= lt) redLines++;
+        else if (lg * 2 >= lt) greenLines++;
+      } else run = 0;
       if (lt >= 3) {
-        textLines++; lastText = k;
-        if (lr >= 3 && lr * 2 >= lt) redLines++;
         kind[k] = lmag >= 4 && lmag * 2 >= lt ? 1 : lr * 2 >= lt ? 2 : lv * 2 >= lt ? 3 : lg * 2 >= lt ? 5 : 4;
       }
     }
@@ -304,17 +312,23 @@ details li { margin-bottom: 6px; }
         }
       }
     }
-    // Filas del sumario: cada franja seguida de líneas con texto es una fila; se cuenta como verde si la mayoría de sus líneas lo son
-    let bands = 0, green = 0;
-    for (let k = 0; k < rows;) {
-      if (!kind[k]) { k++; continue; }
-      let j = k, g = 0; while (j < rows && kind[j]) { if (kind[j] === 5) g++; j++; }
-      if (j - k >= 2) { bands++; if (g * 2 > j - k) green++; }
-      k = j;
+    // Alto de una fila: las filas del sumario se repiten con el mismo alto, así que se busca
+    // cada cuántas líneas se repite el patrón. Con eso, líneas rojas / alto = filas rojas.
+    const seq = []; for (let k = 0; k < rows; k++) if (occ[k]) seq.push(cnt[k]);
+    if (seq.length >= 30) {
+      const m = seq.length, dt = new Float32Array(m);
+      for (let i = 0; i < m; i++) { let a = 0, c = 0; for (let j = Math.max(0, i - 7); j <= Math.min(m - 1, i + 7); j++) { a += seq[j]; c++; } dt[i] = seq[i] - a / c; }
+      const ac = [];
+      for (let L = 5; L <= 40 && L < m / 2; L++) { let t = 0; for (let i = 0; i + L < m; i++) t += dt[i] * dt[i + L]; ac[L] = t / (m - L); }
+      let best = 0; for (let L = 5; L < ac.length; L++) if (ac[L] > best) best = ac[L];
+      for (let L = 6; L < ac.length - 1; L++) if (ac[L] >= best * 0.85 && ac[L] >= ac[L - 1] && ac[L] >= ac[L + 1]) { rowPitch = L; break; }
     }
+    const count = lines => lines ? Math.max(1, Math.round(lines / (rowPitch || 12))) : 0;
+    let magLines = 0; for (let k = 0; k < rows; k++) if (keep[k]) magLines++;
     const lines = Math.max(1, rows);
     return { mag: n ? mag / n : 0, dark: n ? dark / n : 0, sig, mask,
-      red: textLines ? redLines / textLines : 0, text: textLines / lines, bands, green,
+      red: textLines ? redLines / textLines : 0, text: textLines / lines,
+      redRows: count(redLines), greenRows: count(greenLines), magRows: count(magLines),
       // Hasta dónde llegan las filas dentro del recuadro (0 = vacío, 1 = lleno hasta abajo)
       filled: rows > 0 ? (lastText + 1) / rows : 0,
       // Las filas llegan hasta la parte de abajo de la zona marcada (el recuadro está lleno)
@@ -338,9 +352,10 @@ details li { margin-bottom: 6px; }
     lastMag = r.mag;
     $('mg').textContent = (r.mag * 100).toFixed(2) + ' %';
     $('dk').textContent = (r.filled * 100).toFixed(0) + ' %';
-    $('gr').textContent = r.green;
-    $('rd').textContent = (r.red * 100).toFixed(0) + ' %';
-    $('hudVals').textContent = `Magenta ${(r.mag * 100).toFixed(2)} % · Rojas ${(r.red * 100).toFixed(0)} % · Filas ${(r.filled * 100).toFixed(0)} % · Verdes ${r.green} · Pantalla: ${$('wl').textContent}`;
+    $('gr').textContent = r.greenRows;
+    $('rd').textContent = r.redRows;
+    $('mr').textContent = r.magRows;
+    $('hudVals').textContent = `Filas: ${r.redRows} rojas · ${r.greenRows} verdes · ${r.magRows} magenta · Recuadro lleno ${(r.filled * 100).toFixed(0)} % · Pantalla: ${$('wl').textContent}`;
     drawOverlay(r.mask);
     if (!live) return r;
 
@@ -404,38 +419,9 @@ details li { margin-bottom: 6px; }
       stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false });
     } catch (e) { setState('Cámara bloqueada', 'bad'); log('No se pudo abrir la cámara: ' + e.message); return false; }
     cam.srcObject = stream; await cam.play();
-    setupFocus(stream.getVideoTracks()[0]);
     return true;
   }
-  // Enfoque fijo opcional: solo aparece si el celular lo permite. Apagado, la cámara
-  // enfoca sola como siempre. Encendido, se usa la distancia de la barra.
-  let focusPref = { fixed: false, dist: null };
-  try { const f = JSON.parse(localStorage.getItem('vigia-focus')); if (f) focusPref = f; } catch (e) {}
-  let focusTrack = null;
-  function setupFocus(track) {
-    focusTrack = track;
-    let caps = {};
-    try { caps = track.getCapabilities ? track.getCapabilities() : {}; } catch (e) {}
-    const ok = caps.focusMode && caps.focusMode.includes('manual') && caps.focusDistance;
-    $('focusBox').hidden = !ok;
-    if (!ok) return;
-    const r = $('focusDist'), fd = caps.focusDistance;
-    r.min = fd.min; r.max = fd.max; r.step = fd.step || (fd.max - fd.min) / 100;
-    r.value = focusPref.dist != null ? focusPref.dist : (track.getSettings().focusDistance ?? fd.min);
-    $('focusFix').checked = focusPref.fixed;
-    if (focusPref.fixed) applyFocus();
-  }
-  async function applyFocus() {
-    if (!focusTrack) return;
-    try {
-      if ($('focusFix').checked) await focusTrack.applyConstraints({ advanced: [{ focusMode: 'manual', focusDistance: Number($('focusDist').value) }] });
-      else if ((focusTrack.getCapabilities().focusMode || []).includes('continuous')) await focusTrack.applyConstraints({ advanced: [{ focusMode: 'continuous' }] });
-    } catch (e) {}
-    focusPref = { fixed: $('focusFix').checked, dist: Number($('focusDist').value) };
-    try { localStorage.setItem('vigia-focus', JSON.stringify(focusPref)); } catch (e) {}
-  }
-  $('focusFix').onchange = applyFocus;
-  $('focusDist').oninput = () => { $('focusFix').checked = true; applyFocus(); };
+  try { localStorage.removeItem('vigia-focus'); } catch (e) {} // borra el enfoque fijo de la versión anterior
   // Después de una alarma, cierra y vuelve a abrir la cámara igual que al entrar a la app.
   let reopening = false;
   async function reopenCam() {
@@ -496,6 +482,8 @@ details li { margin-bottom: 6px; }
 
   $('start').onclick = start; $('stop').onclick = stop; $('hudStop').onclick = stop;
   $('hudTest').onclick = () => $('test').onclick();
+  // Reenfocar: apaga y prende la cámara, como cuando se tapa y destapa con la mano.
+  $('hudFocus').onclick = () => { log('Reenfocando'); reopenCam(); };
   document.addEventListener('visibilitychange', async () => {
     if (running && document.visibilityState === 'visible') keepAwake();
     if (running && document.visibilityState === 'hidden') log('La app quedó en segundo plano: puede dejar de vigilar.');
@@ -510,7 +498,7 @@ details li { margin-bottom: 6px; }
       vctx.drawImage(img, 0, 0, view.width, view.height);
       const r = analyze(true, false);
       const sees = r.mag > SENS[$('sens').value];
-      log(`Foto: magenta ${(r.mag * 100).toFixed(2)} %, rojas ${(r.red * 100).toFixed(0)} %, filas ${(r.filled * 100).toFixed(0)} %, verdes ${r.green} → ${sees ? 'detecta magenta' : 'sin magenta'}${r.dark < 0.03 && r.text < 0.03 ? ', sumario vacío' : ''}${r.red > 0.7 && r.text > 0.15 && r.full ? ', SUMARIO EN ROJO' : ''}`);
+      log(`Foto: magenta ${(r.mag * 100).toFixed(2)} %, ${r.redRows} rojas, ${r.greenRows} verdes, ${r.magRows} magenta, lleno ${(r.filled * 100).toFixed(0)} % → ${sees ? 'detecta magenta' : 'sin magenta'}${r.dark < 0.03 && r.text < 0.03 ? ', sumario vacío' : ''}${r.red > 0.7 && r.text > 0.15 && r.full ? ', SUMARIO EN ROJO' : ''}`);
       setState(sees ? 'Magenta detectado' : 'Sin magenta', sees ? 'bad' : 'ok');
       URL.revokeObjectURL(img.src);
     };
@@ -530,6 +518,7 @@ details li { margin-bottom: 6px; }
     drag = null;
     if (roi.w < 0.03 || roi.h < 0.03) { roi = { x: 0.05, y: 0.15, w: 0.9, h: 0.7 }; }
     try { localStorage.setItem('vigia-roi', JSON.stringify(roi)); } catch (e) {}
+    rowPitch = null;
     ackLevel = null; // recalcula el nivel base con la nueva zona
     $('hint').hidden = true; drawOverlay(null); log('Zona del sumario actualizada');
   });
