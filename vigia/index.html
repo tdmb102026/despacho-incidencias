@@ -185,6 +185,7 @@ details li { margin-bottom: 6px; }
   const SENS = { high: 0.0006, mid: 0.0015, low: 0.004 }; // fracción de píxeles magenta nuevos en la zona
   let running = false, stream = null, timer = null, wakeLock = null;
   let ackLevel = null, risingCount = 0, emptySince = null, redSince = null, lastSig = null, frozenSince = null;
+  let autoReopened = false; // ya se intentó reabrir la cámara sola por imagen congelada
   let alarmKind = null, audio = null, siren = null;
 
   function log(msg) {
@@ -379,8 +380,15 @@ details li { margin-bottom: 6px; }
     // Congelamiento de cámara: la imagen no cambia nada durante 20 s
     if (lastSig !== null && Math.abs(r.sig - lastSig) < 1) {
       if (!frozenSince) frozenSince = now;
-      else if (now - frozenSince > 20000) raise('frozen', 'CÁMARA DETENIDA', 'La imagen no cambia. Revisa el celular o la cámara.');
-    } else if (frozenSince && frozenSince <= now) frozenSince = null;
+      else if (now - frozenSince > 20000) {
+        // Primero intenta arreglarlo sola, sin sonar; si sigue congelada, avisa
+        if (!autoReopened) { autoReopened = true; frozenSince = null; log('Imagen congelada: reabriendo la cámara'); reopenCam(); }
+        else raise('frozen', 'CÁMARA DETENIDA', 'La imagen no cambia. Revisa el celular o la cámara.');
+      }
+    } else {
+      if (lastSig !== null) autoReopened = false;
+      if (frozenSince && frozenSince <= now) frozenSince = null;
+    }
     lastSig = r.sig;
 
     // Aperturas: aumento de magenta sobre el nivel ya silenciado
