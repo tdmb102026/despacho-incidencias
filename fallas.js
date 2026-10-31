@@ -220,9 +220,11 @@ function applySlot(f, n, r, text) {
     f.read[n] = !r.open ? "No encontré la apertura (fila azul). Escribe la hora abajo." + (r.closed ? ` Cierre ${r.close.slice(11)}.` : "") :
       `Abrió ${r.open.slice(11)} · ` + (r.closed ? `${r.auto ? "reconexión automática" : "cerró el operador"} ${r.close.slice(11)}` : "sin cierre: queda abierto") + (r.tag ? ` · ${r.tag}` : "");
   } else {
-    // La lectura del unifilar es poco segura: se ofrece para tocarla, no se llena sola
     f.amps = r.groups.map(g => g.vals);
-    f.read[n] = r.score ? "Revisa las corrientes abajo: toca la lectura si coincide, o escríbelas." : "No pude leer las corrientes: escríbelas abajo.";
+    // Se llena sola con la más probable (la del equipo elegido va primero; nunca una de puros ceros); las otras quedan para tocar
+    const best = f.amps.find(a => a.some(x => parseFloat(x) > 0));
+    if (best && !f.ia && !f.ib && !f.ic) [f.ia, f.ib, f.ic] = best;
+    f.read[n] = r.score ? "Puse la lectura más probable: revísala abajo, toca otra si no coincide, o escríbelas." : "No pude leer las corrientes: escríbelas abajo.";
   }
   if (n === 2 && !f.eq) guessEquipo(f);
   saveAll();
