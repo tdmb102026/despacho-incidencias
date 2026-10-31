@@ -133,6 +133,7 @@ punto: el código del equipo tal como aparece en la columna del punto, p. ej. "0
     grupos: { type: "array", items: obj_({ equipo: { type: "string" }, a: { type: "string" }, b: { type: "string" }, c: { type: "string" } }) },
     nombres: { type: "array", items: { type: "string" } } }),
     texto: `Foto del unifilar con las medidas del equipo. Junto a cada equipo hay una columna de 3 o 4 corrientes como "34.23 A": las 3 primeras son las fases A, B y C (la 4.ª es el neutro).
+Si la columna tiene solo 2 corrientes, el equipo es monofásico: la 1.ª es la fase y la 2.ª el neutro; pon la fase en a y deja b y c vacíos.
 Lista cada columna de corrientes con el nombre del equipo que está junto a ella (p. ej. "REC. POMONA", "RIO VERDE - 93"). Copia los decimales tal como se ven, con punto.
 nombres: todos los nombres de equipos que se leen en la pantalla.` };
   return null;

@@ -1,14 +1,23 @@
 // ---------- Fallas internas ----------
-// Con 2 o 3 fotos del SCADA/ADMS se arma la fila de Para_Bitacora: 1) incidencia y clientes,
-// 2) historial del equipo (apertura y último cierre, por el color de cada fila),
-// 3) opcional: corrientes; si no se leen, la carga sale del Excel de demanda. Las fases se marcan a mano. La falla se guarda en el celular y se envía a la hoja de Google;
+// Con 2 o 3 fotos del SCADA/ADMS se arma la fila de Para_Bitacora: 1) historial del equipo (apertura y último cierre,
+// por el color de cada fila), 2) incidencia y clientes,
+// 3) opcional: corrientes (3 fases, o fase y neutro si es monofásico); si no se leen, la carga sale del Excel de demanda. Las fases se marcan a mano. La falla se guarda en el celular y se envía a la hoja de Google;
 // en la PC el marcador "Llenar Bitácora" la lee y llena el formulario.
 
+// n es fijo (0 incidencia, 1 historial, 2 cargas); ORDEN es como se muestran: primero el historial, que es lo que se revisa primero
 const SLOTS = [
-  { t: "1 · Incidencia", d: "Gestión de incidencias: pestaña INC y Clientes afectados" },
-  { t: "2 · Historial del equipo", d: "Event Summary: azul = apertura, verde = reconexión automática, blanco = cierre del operador" },
-  { t: "3 · Cargas (opcional)", d: "Unifilar con las corrientes del equipo; sin foto se usa el Excel de demanda" },
+  { t: "Incidencia", d: "Gestión de incidencias: pestaña INC y Clientes afectados" },
+  { t: "Historial del equipo", d: "Event Summary: azul = apertura, verde = reconexión automática, blanco = cierre del operador" },
+  { t: "Cargas (opcional)", d: "Unifilar con las corrientes del equipo; sin foto se usa el Excel de demanda" },
 ];
+const ORDEN = [1, 0, 2];
+// Monofásico (una sola corriente: fase y neutro): kW = 13,8 kV / √3 × I × fp
+const KV_FN = 13.8 / Math.sqrt(3), FP = 0.9;
+function monoKW(f) {
+  const v = [f.ia, f.ib, f.ic].filter(Boolean);
+  const i = v.length === 1 && parseFloat(String(v[0]).replace(",", "."));
+  return i > 0 ? { kw: Math.round(KV_FN * i * FP), i } : null;
+}
 const EQUIPOS = [
   ...DEMANDA.map(([se, nombre], i) => ({ tipo: "alim", se, nombre, i })),
   ...RECONECTADORES.map(nombre => ({ tipo: "rec", se: "", nombre })),
@@ -244,7 +253,8 @@ function demandaKW(f) {
 // ---------- fila ----------
 function rowOf(f) {
   const rec = f.eq && f.eq.tipo === "rec", cerrado = f.estado === "CERRADO";
-  const amps = f.ia || f.ib || f.ic;
+  const mono = monoKW(f), amps = !mono && (f.ia || f.ib || f.ic);
+  if (mono) f = { ...f, ia: "", ib: "", ic: "", kw: String(mono.kw) };
   return ["", f.inc || "", f.clientes || "", cerrado ? "CERRADO" : "ABIERTO", f.des || "", cerrado ? f.con || "" : "", "",
     f.eq && !rec ? f.eq.se : "", f.eq && !rec ? f.eq.nombre : "", f.ia || "", f.ib || "", f.ic || "", amps ? "" : f.kw || "",
     // La descripción va vacía: la bitácora la arma sola con los datos del formulario
@@ -284,10 +294,10 @@ function drawList() {
 function drawSlots() {
   const f = cur, box = $("fx-slots"); if (!f) return;
   box.innerHTML = "";
-  SLOTS.forEach((s, n) => {
-    const el = document.createElement("div"); el.className = "slot";
+  ORDEN.forEach((n, pos) => {
+    const s = SLOTS[n], el = document.createElement("div"); el.className = "slot";
     el.innerHTML = '<div class="slot-h"><div><b></b><small></small></div></div><div class="pick"><button class="btn shot" type="button">Cámara</button><label class="btn shot alt"><input type="file" accept="image/*">Galería</label></div>';
-    el.querySelector("b").textContent = s.t;
+    el.querySelector("b").textContent = `${pos + 1} · ${s.t}`;
     el.querySelector("small").textContent = (f.read && f.read[n]) || s.d;
     const url = shots[f.id] && shots[f.id][n];
     if (url) {
@@ -331,20 +341,22 @@ function fillEditor() {
   for (const k of ["des", "con"]) fillTime(k);
   const ab = $("fx-c-amp"), cura = [f.ia, f.ib, f.ic].join(" / "); ab.innerHTML = ""; ab.hidden = !(f.amps || []).length;
   for (const a of f.amps || []) {
-    const b = document.createElement("button"); b.className = "chip"; b.type = "button"; b.textContent = "Leí " + a.join(" / ") + " A";
+    const b = document.createElement("button"); b.className = "chip"; b.type = "button"; b.textContent = "Leí " + a.filter(Boolean).join(" / ") + " A" + (a.filter(Boolean).length === 1 ? " (monofásico)" : "");
     b.setAttribute("aria-pressed", String(a.join(" / ") === cura));
     b.onclick = () => { [f.ia, f.ib, f.ic] = a; changed(); };
     ab.appendChild(b);
   }
-  // Carga: corrientes de la foto 4; si no hay y es alimentador, el Excel; si es reconectador, a mano
-  const amps = f.ia || f.ib || f.ic, d = !amps && demandaKW(f);
+  // Carga: corrientes de la foto de cargas (con una sola corriente es monofásico y los kW se calculan aquí);
+  // si no hay y es alimentador, el Excel; si es reconectador, a mano
+  const mono = monoKW(f), amps = !mono && (f.ia || f.ib || f.ic), d = !amps && !mono && demandaKW(f);
   if (d && !f.kwManual) f.kw = String(d.kw);
-  if (document.activeElement !== $("fx-kw")) $("fx-kw").value = amps ? "" : f.kw || "";
-  $("fx-kw").disabled = !!amps;
-  $("fx-kw-n").textContent = amps ? "Con corrientes la bitácora calcula los kW." : d ? d.note : f.eq && f.eq.tipo === "rec" ? "Reconectador sin foto de cargas: escribe los kW." : "";
+  if (document.activeElement !== $("fx-kw")) $("fx-kw").value = mono ? mono.kw : amps ? "" : f.kw || "";
+  $("fx-kw").disabled = !!(amps || mono);
+  $("fx-kw-n").textContent = mono ? `Monofásico: 7,97 kV × ${String(mono.i).replace(".", ",")} A × 0,9 = ${mono.kw} kW (13,8 kV / √3, sin el √3 trifásico).`
+    : amps ? "Con corrientes la bitácora calcula los kW." : d ? d.note : f.eq && f.eq.tipo === "rec" ? "Reconectador sin foto de cargas: escribe los kW." : "";
   for (const [k, id] of [["origen", "fx-l-ori"], ["causa", "fx-l-cau"], ["subcausa", "fx-l-sub"]])
     $(id).innerHTML = store.get("usados-" + k, []).map(v => `<option value="${v.replace(/"/g, "&quot;")}">`).join("");
-  $("fx-raw").textContent = (f.raw || []).map((t, i) => t ? `--- Foto ${i + 1} ---\n${t}` : "").filter(Boolean).join("\n");
+  $("fx-raw").textContent = ORDEN.map((n, pos) => f.raw && f.raw[n] ? `--- Foto ${pos + 1} ---\n${f.raw[n]}` : "").filter(Boolean).join("\n");
 }
 function changed() { cur.enviada = false; saveAll(); fillEditor(); }
 for (const [k, id] of Object.entries(FX)) $(id).addEventListener("input", () => {
