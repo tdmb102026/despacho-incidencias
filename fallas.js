@@ -12,7 +12,7 @@ const SLOTS = [
 ];
 const ORDEN = [1, 0, 2];
 // Monofásico (una sola corriente: fase y neutro): kW = 13,8 kV / √3 × I × fp
-const KV_FN = 13.8 / Math.sqrt(3), FP = 0.9;
+const KV_FN = 13.8 / Math.sqrt(3), FP = 0.96;
 function monoKW(f) {
   const v = [f.ia, f.ib, f.ic].filter(Boolean);
   const i = v.length === 1 && parseFloat(String(v[0]).replace(",", "."));
@@ -352,7 +352,7 @@ function fillEditor() {
   if (d && !f.kwManual) f.kw = String(d.kw);
   if (document.activeElement !== $("fx-kw")) $("fx-kw").value = mono ? mono.kw : amps ? "" : f.kw || "";
   $("fx-kw").disabled = !!(amps || mono);
-  $("fx-kw-n").textContent = mono ? `Monofásico: 7,97 kV × ${String(mono.i).replace(".", ",")} A × 0,9 = ${mono.kw} kW (13,8 kV / √3, sin el √3 trifásico).`
+  $("fx-kw-n").textContent = mono ? `Monofásico: 7,97 kV × ${String(mono.i).replace(".", ",")} A × 0,96 = ${mono.kw} kW (13,8 kV / √3, sin el √3 trifásico).`
     : amps ? "Con corrientes la bitácora calcula los kW." : d ? d.note : f.eq && f.eq.tipo === "rec" ? "Reconectador sin foto de cargas: escribe los kW." : "";
   for (const [k, id] of [["origen", "fx-l-ori"], ["causa", "fx-l-cau"], ["subcausa", "fx-l-sub"]])
     $(id).innerHTML = store.get("usados-" + k, []).map(v => `<option value="${v.replace(/"/g, "&quot;")}">`).join("");
