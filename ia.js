@@ -189,7 +189,9 @@ function iaSlot(n, out) {
   }
   if (n === 1) return iaHist(out);
   const num = s => { const m = /\d{1,4}(?:[.,]\d{1,3})?/.exec(String(s || "")); return m ? m[0].replace(",", ".") : ""; };
-  const gs = (out.grupos || []).map(g => ({ equipo: g.equipo, vals: [g.a, g.b, g.c].map(num) })).filter(g => g.vals.every(Boolean));
+  // Monofásico: solo la fase (en a), sin b ni c
+  const gs = (out.grupos || []).map(g => ({ equipo: g.equipo, vals: [g.a, g.b, g.c].map(num) }))
+    .filter(g => g.vals.every(Boolean) || (g.vals[0] && !g.vals[1] && !g.vals[2]));
   // El grupo del equipo elegido va primero
   const k = squash((cur && cur.eq && cur.eq.nombre) || "");
   if (k) gs.sort((a, b) => squash(b.equipo).includes(k) - squash(a.equipo).includes(k));
