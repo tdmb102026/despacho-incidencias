@@ -130,7 +130,7 @@ async function iaReadInc(file, signal) {
     phones, giro: out.giro || 0, canvas, raw: JSON.stringify(out, null, 1) };
 }
 async function processFileIA(file) {
-  photoFile = file; const my = ++lectura; iaAbort = new AbortController();
+  photoFile = file; const my = ++lectura; iaAbort = new AbortController(); $("pend-btn").hidden = true;
   $("thumb").src = URL.createObjectURL(file);
   $("prev").hidden = false; $("result").hidden = true; $("note").hidden = true;
   $("barfill").style.width = "10%"; $("status").textContent = "Enviando la foto a la IA…";
@@ -147,6 +147,7 @@ async function processFileIA(file) {
     $("raw").textContent = p.raw;
     showResult(p);
   } catch (err) {
+    if (my === lectura) hecha = my;
     if (my === lectura) $("status").textContent = err.ia ? err.message : "No se pudo leer la foto. Vuelve a intentarlo.";
   } finally { clearInterval(tick); }
 }
