@@ -76,6 +76,12 @@ select { font: inherit; background: var(--bg); color: var(--fg); border: 1px sol
 #alarm p { font-size: 18px; margin: 0 0 24px; }
 #alarm button { font-size: 22px; padding: 18px 34px; background: #fff; color: #111; border: 0; }
 @keyframes flash { 50% { filter: brightness(.6); } }
+#lock { position: fixed; inset: 0; z-index: 30; display: grid; place-items: center; padding: 16px; background: var(--bg); }
+#lock form { display: grid; gap: 10px; width: min(340px, 100%); }
+#lock h2 { margin: 0 0 4px; }
+#lock input { padding: 12px; font-size: 18px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel); color: var(--fg); }
+#lock button { padding: 12px; font-size: 18px; }
+#lockMsg { min-height: 1.3em; color: var(--bad); margin: 0; }
 @media (prefers-reduced-motion: reduce) { #alarm { animation: none; } }
 details { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; }
 details summary { cursor: pointer; font-weight: 600; }
@@ -138,6 +144,7 @@ details li { margin-bottom: 6px; }
     <label><input type="checkbox" id="redOn" checked> Avisar si el sumario se llena de alarmas rojas</label>
     <label><input type="checkbox" id="aorOn" checked> Avisar si el sumario se queda vacío (pérdida de AOR)</label>
     <label><input type="checkbox" id="maskOn" checked> Mostrar en pantalla lo que detecta como magenta</label>
+    <button id="newPw" type="button">Cambiar clave</button>
     <div class="ntfy">
       <label><input type="checkbox" id="ntfyOn"> Avisar a otros celulares (app ntfy)</label>
       <div class="row"><input type="text" id="ntfyTopic" autocomplete="off" spellcheck="false" aria-label="Canal de ntfy"><button id="ntfyTest">Enviar prueba</button></div>
@@ -176,6 +183,17 @@ details li { margin-bottom: 6px; }
 </div>
 
 <video id="cam" playsinline muted hidden></video>
+
+<div id="lock">
+  <form id="lockForm" autocomplete="off">
+    <h2 id="lockTitle">Clave de la Vigía</h2>
+    <p id="lockHelp"></p>
+    <input type="password" id="lockPw" placeholder="Clave" aria-label="Clave">
+    <input type="password" id="lockPw2" placeholder="Repite la clave" aria-label="Repite la clave" hidden>
+    <p id="lockMsg"></p>
+    <button type="submit" id="lockGo">Entrar</button>
+  </form>
+</div>
 
 <script>
 (() => {
@@ -273,6 +291,38 @@ details li { margin-bottom: 6px; }
     } catch (e) { log('No se pudo enviar el aviso a ntfy (¿sin internet?)'); }
   }
   $('ntfyTest').onclick = () => { saveNtfy(); sendNtfy('Prueba de Vigía', 'Si te llegó esto, los avisos funcionan.', true); };
+
+  // ---------- Clave al abrir ----------
+  // Se guarda solo una huella de la clave en este celular. La primera vez (o al usar
+  // "Cambiar clave") se crea; después se pide cada vez que se abre la app.
+  async function hashPw(pw) {
+    const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode('vigia:' + pw));
+    return Array.from(new Uint8Array(buf), b => b.toString(16).padStart(2, '0')).join('');
+  }
+  let savedHash = null; try { savedHash = localStorage.getItem('vigia-clave'); } catch (e) {}
+  function showLock(create) {
+    $('lockTitle').textContent = create ? 'Crea la clave de la Vigía' : 'Clave de la Vigía';
+    $('lockHelp').textContent = create ? 'Desde ahora se pedirá cada vez que abras la app.' : '';
+    $('lockPw2').hidden = !create; $('lockGo').textContent = create ? 'Guardar clave' : 'Entrar';
+    $('lockPw').value = $('lockPw2').value = ''; $('lockMsg').textContent = '';
+    $('lock').hidden = false; $('lockPw').focus();
+  }
+  $('lockForm').onsubmit = async ev => {
+    ev.preventDefault();
+    const pw = $('lockPw').value;
+    if (!$('lockPw2').hidden) {
+      if (pw.length < 4) { $('lockMsg').textContent = 'Usa al menos 4 caracteres.'; return; }
+      if (pw !== $('lockPw2').value) { $('lockMsg').textContent = 'Las dos claves no coinciden.'; return; }
+      savedHash = await hashPw(pw);
+      try { localStorage.setItem('vigia-clave', savedHash); } catch (e) {}
+      log('Clave guardada');
+    } else if (await hashPw(pw) !== savedHash) {
+      $('lockMsg').textContent = 'Clave incorrecta.'; $('lockPw').value = ''; return;
+    }
+    $('lock').hidden = true;
+  };
+  $('newPw').onclick = () => showLock(true);
+  showLock(!savedHash);
   $('ack').onclick = () => {
     clearInterval(siren); siren = null; $('alarm').hidden = true;
     if (alarmKind === 'open') { ackLevel = lastMag; risingCount = 0; }
