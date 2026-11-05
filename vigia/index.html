@@ -70,6 +70,8 @@ select { font: inherit; background: var(--bg); color: var(--fg); border: 1px sol
   background: var(--mag); color: #fff; animation: flash 0.8s steps(2) infinite; }
 #alarm.aor { background: var(--warn); color: #111; }
 #alarm.red { background: var(--bad); }
+#alarm.comm { background: #c9714a; }
+#alarm.soft { animation: none; } /* sin parpadeo en el modo suave */
 .vol { display: flex; gap: 8px; align-items: center; }
 .vol input { flex: 1; min-width: 0; accent-color: var(--mag); }
 #alarm h2 { font-size: clamp(28px, 7vw, 54px); margin: 0 0 8px; }
@@ -126,6 +128,7 @@ details li { margin-bottom: 6px; }
     <div class="tile"><b>Filas rojas</b><span id="rd">–</span></div>
     <div class="tile"><b>Filas verdes</b><span id="gr">–</span></div>
     <div class="tile"><b>Filas magenta</b><span id="mr">–</span></div>
+    <div class="tile"><b>Filas rosadas/tomate</b><span id="cm">–</span></div>
     <div class="tile"><b>Recuadro lleno</b><span id="dk">–</span></div>
     <div class="tile"><b>Magenta (detalle)</b><span id="mg">–</span></div>
     <div class="tile"><b>Último cuadro</b><span id="fr">–</span></div>
@@ -142,6 +145,8 @@ details li { margin-bottom: 6px; }
     </label>
     <div class="vol"><label for="vol">Volumen</label><input type="range" id="vol" min="0" max="100" step="5" value="80"><span id="volTxt">80 %</span></div>
     <label><input type="checkbox" id="redOn" checked> Avisar si el sumario se llena de alarmas rojas</label>
+    <label><input type="checkbox" id="commOn" checked> Avisar (suave) si el sumario se llena de fallas de comunicación (rosadas o tomate)</label>
+    <label><input type="checkbox" id="softAll"> Sonidos suaves para todas las alarmas</label>
     <label><input type="checkbox" id="aorOn" checked> Avisar si el sumario se queda vacío (pérdida de AOR)</label>
     <label><input type="checkbox" id="maskOn" checked> Mostrar en pantalla lo que detecta como magenta</label>
     <button id="newPw" type="button">Cambiar clave</button>
@@ -212,7 +217,7 @@ details li { margin-bottom: 6px; }
   const SENS = { high: 0.0006, mid: 0.0015, low: 0.004 }; // fracción de píxeles magenta nuevos en la zona
   let running = false, stream = null, timer = null, wakeLock = null;
   let ackLevel = null, risingCount = 0, emptySince = null, redSince = null, lastSig = null, frozenSince = null;
-  let redClear = null;
+  let redClear = null, commSince = null, commClear = null;
   let alarmKind = null, audio = null, siren = null;
 
   function log(msg) {
@@ -236,6 +241,15 @@ details li { margin-bottom: 6px; }
     if (!audio) { audio = new (window.AudioContext || window.webkitAudioContext)(); master = audio.createGain(); master.gain.value = volume; master.connect(audio.destination); }
     if (audio.state === 'suspended') audio.resume();
   }
+  // Campanita suave: onda senoidal, sube y baja despacio
+  function chime(freq, start, dur, gain = 0.5) {
+    const o = audio.createOscillator(), g = audio.createGain();
+    o.type = 'sine'; o.frequency.value = freq;
+    g.gain.setValueAtTime(0, start);
+    g.gain.linearRampToValueAtTime(gain, start + 0.08);
+    g.gain.exponentialRampToValueAtTime(0.001, start + dur);
+    o.connect(g).connect(master); o.start(start); o.stop(start + dur + 0.02);
+  }
   function beep(freq, start, dur, gain = 0.9) {
     const o = audio.createOscillator(), g = audio.createGain();
     o.type = 'square'; o.frequency.value = freq;
@@ -248,6 +262,12 @@ details li { margin-bottom: 6px; }
   function pattern(kind) {
     ensureAudio();
     const t = audio.currentTime + 0.02;
+    if (kind === 'comm' || $('softAll').checked) {
+      // Versión suave: notas distintas por tipo para reconocerlas sin mirar
+      const notes = { open: [784, 988, 1175], red: [659, 659], aor: [523, 392], comm: [587, 784] }[kind] || [587, 784];
+      notes.forEach((f, i) => chime(f, t + i * 0.45, 1.1));
+      return;
+    }
     if (kind === 'aor') { beep(520, t, 0.5); beep(520, t + 0.7, 0.5); }
     else if (kind === 'red') { beep(784, t, 0.25); beep(784, t + 0.35, 0.25); beep(784, t + 0.7, 0.25); }
     else { beep(1046, t, 0.18); beep(1318, t + 0.22, 0.18); beep(1568, t + 0.44, 0.3); }
@@ -259,9 +279,12 @@ details li { margin-bottom: 6px; }
     const sound = kind === 'frozen' ? 'aor' : kind;
     $('alarm').classList.toggle('aor', kind === 'aor' || kind === 'frozen');
     $('alarm').classList.toggle('red', kind === 'red');
+    const soft = kind === 'comm' || $('softAll').checked;
+    $('alarm').classList.toggle('comm', kind === 'comm');
+    $('alarm').classList.toggle('soft', soft);
     $('alarm').hidden = false;
     pattern(sound);
-    siren = setInterval(() => pattern(sound), 1600); // sin vibración: mueve el celular y lo desenfoca
+    siren = setInterval(() => pattern(sound), soft ? 4000 : 1600); // sin vibración: mueve el celular y lo desenfoca
     log(`ALARMA: ${title}`);
     sendNtfy(title, text);
   }
@@ -329,10 +352,19 @@ details li { margin-bottom: 6px; }
     if (alarmKind === 'aor') emptySince = Date.now() + 50000; // espera 60 s antes de repetir
     if (alarmKind === 'frozen') frozenSince = Date.now() + 50000;
     if (alarmKind === 'red') redSince = Date.now() + 55000; // repite al minuto si sigue lleno de rojas
+    if (alarmKind === 'comm') commSince = Date.now() + 55000;
     log('Silenciada'); alarmKind = null;
     setTimeout(reopenCam, 1000); // vuelve a abrir la cámara como al entrar a la app
   };
-  $('test').onclick = () => { ensureAudio(); pattern('open'); setTimeout(() => pattern('red'), 1300); setTimeout(() => pattern('aor'), 2700); };
+  $('test').onclick = () => {
+    ensureAudio(); const step = $('softAll').checked ? 2000 : 1350;
+    pattern('open'); setTimeout(() => pattern('red'), step); setTimeout(() => pattern('aor'), 2 * step); setTimeout(() => pattern('comm'), 3 * step + 600);
+  };
+  // Recordar las opciones de sonido
+  for (const id of ['commOn', 'softAll']) {
+    try { const v = localStorage.getItem('vigia-' + id); if (v !== null) $(id).checked = v === '1'; } catch (e) {}
+    $(id).addEventListener('change', () => { try { localStorage.setItem('vigia-' + id, $(id).checked ? '1' : '0'); } catch (e) {} });
+  }
 
   // ---------- Análisis de imagen ----------
   let lastMag = 0;
@@ -342,7 +374,7 @@ details li { margin-bottom: 6px; }
   let rowPitch = null;
   function classify(img, wid, hei, drawMask) {
     const d = img.data; let dark = 0, n = 0, sig = 0;
-    let redLines = 0, greenLines = 0, textLines = 0, lastText = -1, run = 0;
+    let redLines = 0, greenLines = 0, commLines = 0, textLines = 0, lastText = -1, run = 0;
     const x0 = Math.floor(roi.x * wid), y0 = Math.floor(roi.y * hei);
     const x1 = Math.floor((roi.x + roi.w) * wid), y1 = Math.floor((roi.y + roi.h) * hei);
     const rows = Math.max(0, y1 - y0);
@@ -350,18 +382,21 @@ details li { margin-bottom: 6px; }
     const cnt = new Float32Array(rows), occ = new Uint8Array(rows);
     const lm = new Int32Array(rows), kind = new Int8Array(rows); // 0 nada, 1 magenta, 2 rojo, 3 violeta, 4 otro, 5 verde
     for (let y = y0; y < y1; y++) {
-      let lr = 0, lt = 0, lmag = 0, lv = 0, lg = 0;
+      let lr = 0, lt = 0, lmag = 0, lv = 0, lg = 0, lp = 0, lo = 0;
       for (let x = x0; x < x1; x++) {
         const i = (y * wid + x) * 4, r = d[i], g = d[i + 1], b = d[i + 2];
         const mx = Math.max(r, g, b), mn = Math.min(r, g, b), c = mx - mn;
         n++;
         if (mx < 64) dark++;
         if ((x & 7) === 0 && (y & 7) === 0) sig += r + g + b;
-        if (mx < 100 || c / mx < 0.45) continue;
+        if (mx < 100 || c / mx < 0.12) continue;
         let h;
         if (mx === r) h = ((g - b) / c + 6) % 6; else if (mx === g) h = (b - r) / c + 2; else h = (r - g) / c + 4;
         h *= 60;
+        // Rosado (fallas de comunicación): rojo claro y apagado, que no llega a contar como color fuerte
+        if (c / mx < 0.45) { if (mx >= 120 && (h < 25 || h > 335)) lp++; continue; }
         lt++;
+        if (h >= 15 && h < 45) lo++; // tomate
         if (h > 285 && h < 335) lmag++;
         else if (h < 15 || h > 345) lr++;
         else if (h > 225 && h <= 285) lv++;
@@ -369,14 +404,15 @@ details li { margin-bottom: 6px; }
       }
       const k = y - y0;
       lm[k] = lmag;
-      cnt[k] = lt;
+      cnt[k] = lt + lp;
       // Solo cuentan como fila las líneas rojas, verdes o magenta/violeta. Otros colores
       // (por ejemplo el gris azulado del fondo vacío según la cámara) no son filas.
-      const cls = lt < minT ? 0 : lr * 2 >= lt ? 2 : lg * 2 >= lt ? 3 : (lmag + lv) * 2 >= lt ? 1 : 0;
+      // 4 = rosado o tomate (comunicaciones)
+      const lc = lt + lp, cls = lc < minT ? 0 : (lp + lo) * 2 >= lc ? 4 : lr * 2 >= lc ? 2 : lg * 2 >= lc ? 3 : (lmag + lv) * 2 >= lc ? 1 : 0;
       if (cls) {
         occ[k] = cls; textLines++;
         if (++run >= 3) lastText = k; // ignora puntitos sueltos: hacen falta 3 líneas seguidas
-        if (cls === 2) redLines++; else if (cls === 3) greenLines++;
+        if (cls === 2) redLines++; else if (cls === 3) greenLines++; else if (cls === 4) commLines++;
       } else run = 0;
       if (lt >= 3) {
         kind[k] = lmag >= 4 && lmag * 2 >= lt ? 1 : lr * 2 >= lt ? 2 : lv * 2 >= lt ? 3 : lg * 2 >= lt ? 5 : 4;
@@ -426,13 +462,14 @@ details li { margin-bottom: 6px; }
       }
     }
     // Cada espacio entre líneas con color se suma al color de la línea de arriba (es la misma fila)
-    let span = { 2: 0, 3: 0 }, cur = 0;
+    let span = { 2: 0, 3: 0, 4: 0 }, cur = 0;
     if (first >= 0) for (let k = first; k <= lastText; k++) { if (occ[k]) cur = occ[k]; if (cur in span) span[cur]++; }
-    const count = lines => lines ? Math.max(1, Math.round(lines / (rowPitch || 12))) : 0;
+    const count = lines => Math.round(lines / (rowPitch || 12)); // menos de media fila no cuenta
     let magLines = 0; for (let k = 0; k < rows; k++) if (keep[k]) magLines++;
     const lines = Math.max(1, rows);
     return { mag: n ? mag / n : 0, dark: n ? dark / n : 0, sig, mask,
-      red: textLines ? redLines / textLines : 0, text: textLines / lines,
+      red: textLines ? redLines / textLines : 0, comm: textLines ? commLines / textLines : 0, text: textLines / lines,
+      commRows: count(Math.max(commLines, span[4])),
       redRows: count(Math.max(redLines, span[2])), greenRows: count(Math.max(greenLines, span[3])), magRows: count(magLines),
       // Hasta dónde llegan las filas dentro del recuadro (0 = vacío, 1 = lleno hasta abajo)
       filled: rows > 0 ? (lastText + 1) / rows : 0,
@@ -459,8 +496,9 @@ details li { margin-bottom: 6px; }
     $('dk').textContent = (r.filled * 100).toFixed(0) + ' %';
     $('gr').textContent = r.greenRows;
     $('rd').textContent = r.redRows;
+    $('cm').textContent = r.commRows;
     $('mr').textContent = r.magRows;
-    $('hudVals').textContent = `Filas: ${r.redRows} rojas · ${r.greenRows} verdes · ${r.magRows} magenta · Recuadro lleno ${(r.filled * 100).toFixed(0)} % · Pantalla: ${$('wl').textContent}`;
+    $('hudVals').textContent = `Filas: ${r.redRows} rojas · ${r.greenRows} verdes · ${r.magRows} magenta · ${r.commRows} rosadas/tomate · Recuadro lleno ${(r.filled * 100).toFixed(0)} % · Pantalla: ${$('wl').textContent}`;
     drawOverlay(r.mask);
     if (!live) return r;
 
@@ -488,6 +526,16 @@ details li { margin-bottom: 6px; }
       // Si deja de estar en rojo por 10 s seguidos, se rearma: la próxima vez suena de nuevo
       if (!redClear) redClear = now;
       else if (now - redClear > 10000) { redSince = null; redClear = null; }
+    }
+
+    // Sumario lleno de fallas de comunicación (filas rosadas o tomate): aviso suave, igual que el rojo
+    if ($('commOn').checked && r.comm > 0.7 && r.text > 0.15 && r.full) {
+      commClear = null;
+      if (!commSince) commSince = now;
+      else if (now - commSince > 5000) raise('comm', 'FALLAS DE COMUNICACIÓN', 'El sumario está lleno de alarmas rosadas o tomate.');
+    } else if (commSince) {
+      if (!commClear) commClear = now;
+      else if (now - commClear > 10000) { commSince = null; commClear = null; }
     }
 
     // Pérdida de AOR: zona sin filas oscuras y sin texto de colores durante 10 s
@@ -609,7 +657,7 @@ details li { margin-bottom: 6px; }
       vctx.drawImage(img, 0, 0, view.width, view.height);
       const r = analyze(true, false);
       const sees = r.mag > SENS[$('sens').value];
-      log(`Foto: magenta ${(r.mag * 100).toFixed(2)} %, ${r.redRows} rojas, ${r.greenRows} verdes, ${r.magRows} magenta, lleno ${(r.filled * 100).toFixed(0)} % → ${sees ? 'detecta magenta' : 'sin magenta'}${r.dark < 0.03 && r.text < 0.03 ? ', sumario vacío' : ''}${r.red > 0.7 && r.text > 0.15 && r.full ? ', SUMARIO EN ROJO' : ''}`);
+      log(`Foto: magenta ${(r.mag * 100).toFixed(2)} %, ${r.redRows} rojas, ${r.greenRows} verdes, ${r.magRows} magenta, ${r.commRows} rosadas/tomate, lleno ${(r.filled * 100).toFixed(0)} % → ${sees ? 'detecta magenta' : 'sin magenta'}${r.dark < 0.03 && r.text < 0.03 ? ', sumario vacío' : ''}${r.red > 0.7 && r.text > 0.15 && r.full ? ', SUMARIO EN ROJO' : ''}${r.comm > 0.7 && r.text > 0.15 && r.full ? ', SUMARIO DE COMUNICACIONES' : ''}`);
       setState(sees ? 'Magenta detectado' : 'Sin magenta', sees ? 'bad' : 'ok');
       URL.revokeObjectURL(img.src);
     };
