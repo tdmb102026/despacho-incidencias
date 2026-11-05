@@ -66,7 +66,7 @@ body.live .hud { pointer-events: none; } .hud button { pointer-events: auto; }
 .ntfy input[type=text] { flex: 1; min-width: 0; padding: 8px; border-radius: 6px; border: 1px solid var(--line); background: var(--bg); color: var(--fg); font: 14px var(--mono); }
 .ntfy small { color: var(--muted); }
 select { font: inherit; background: var(--bg); color: var(--fg); border: 1px solid var(--line); border-radius: 6px; padding: 6px; }
-#alarm { position: fixed; inset: 0; z-index: 20; display: grid; place-items: center; text-align: center; padding: 24px;
+#alarm { position: fixed; inset: 0; z-index: 40; display: grid; place-items: center; text-align: center; padding: 24px;
   background: var(--mag); color: #fff; animation: flash 0.8s steps(2) infinite; }
 #alarm.aor { background: var(--warn); color: #111; }
 #alarm.red { background: var(--bad); }
@@ -117,6 +117,7 @@ details li { margin-bottom: 6px; }
       <span id="hudSt"></span>
       <span id="hudVals">–</span>
       <span class="sep"></span>
+      <span id="hudSes"></span>
       <button id="hudFocus">Reenfocar</button>
       <button id="hudTest">Probar sonido</button>
       <button id="hudStop">Detener</button>
@@ -146,10 +147,20 @@ details li { margin-bottom: 6px; }
     <div class="vol"><label for="vol">Volumen</label><input type="range" id="vol" min="0" max="100" step="5" value="80"><span id="volTxt">80 %</span></div>
     <label><input type="checkbox" id="redOn" checked> Avisar si el sumario se llena de alarmas rojas</label>
     <label><input type="checkbox" id="commOn" checked> Avisar (suave) si el sumario se llena de fallas de comunicación (rosadas o tomate)</label>
-    <label><input type="checkbox" id="softAll"> Sonidos suaves para todas las alarmas</label>
+    <label>Tipo de sonido para todas las alarmas
+      <select id="soundStyle">
+        <option value="loud">Fuerte (agudo, con parpadeo)</option>
+        <option value="mid">Medio</option>
+        <option value="soft">Suave (campanitas)</option>
+      </select>
+    </label>
     <label><input type="checkbox" id="aorOn" checked> Avisar si el sumario se queda vacío (pérdida de AOR)</label>
     <label><input type="checkbox" id="maskOn" checked> Mostrar en pantalla lo que detecta como magenta</label>
-    <button id="newPw" type="button">Cambiar clave</button>
+    <div class="row" style="display:flex; gap:8px; align-items:center; flex-wrap:wrap">
+      <span>Sesión: <b id="sesLeft">–</b></span>
+      <button id="logout" type="button">Cerrar sesión</button>
+      <button id="newPw" type="button">Cambiar clave</button>
+    </div>
     <div class="ntfy">
       <label><input type="checkbox" id="ntfyOn"> Avisar a otros celulares (app ntfy)</label>
       <div class="row"><input type="text" id="ntfyTopic" autocomplete="off" spellcheck="false" aria-label="Canal de ntfy"><button id="ntfyTest">Enviar prueba</button></div>
@@ -259,10 +270,26 @@ details li { margin-bottom: 6px; }
     g.gain.linearRampToValueAtTime(0, start + dur);
     o.connect(g).connect(master); o.start(start); o.stop(start + dur + 0.01);
   }
+  // Tono medio: onda triangular (más redonda que la cuadrada) en frecuencias medias
+  function tone(freq, start, dur, gain = 0.7) {
+    const o = audio.createOscillator(), g = audio.createGain();
+    o.type = 'triangle'; o.frequency.value = freq;
+    g.gain.setValueAtTime(0, start);
+    g.gain.linearRampToValueAtTime(gain, start + 0.04);
+    g.gain.setValueAtTime(gain, start + dur - 0.08);
+    g.gain.linearRampToValueAtTime(0, start + dur);
+    o.connect(g).connect(master); o.start(start); o.stop(start + dur + 0.02);
+  }
+  const styleOf = kind => kind === 'comm' ? 'soft' : $('soundStyle').value;
   function pattern(kind) {
     ensureAudio();
     const t = audio.currentTime + 0.02;
-    if (kind === 'comm' || $('softAll').checked) {
+    if (styleOf(kind) === 'mid') {
+      const notes = { open: [660, 784, 880], red: [587, 587, 587], aor: [494, 392] }[kind] || [587, 659];
+      notes.forEach((f, i) => tone(f, t + i * 0.38, 0.3));
+      return;
+    }
+    if (styleOf(kind) === 'soft') {
       // Versión suave: notas distintas por tipo para reconocerlas sin mirar
       const notes = { open: [784, 988, 1175], red: [659, 659], aor: [523, 392], comm: [587, 784] }[kind] || [587, 784];
       notes.forEach((f, i) => chime(f, t + i * 0.45, 1.1));
@@ -279,12 +306,12 @@ details li { margin-bottom: 6px; }
     const sound = kind === 'frozen' ? 'aor' : kind;
     $('alarm').classList.toggle('aor', kind === 'aor' || kind === 'frozen');
     $('alarm').classList.toggle('red', kind === 'red');
-    const soft = kind === 'comm' || $('softAll').checked;
+    const style = styleOf(kind);
     $('alarm').classList.toggle('comm', kind === 'comm');
-    $('alarm').classList.toggle('soft', soft);
+    $('alarm').classList.toggle('soft', style !== 'loud'); // medio y suave no parpadean
     $('alarm').hidden = false;
     pattern(sound);
-    siren = setInterval(() => pattern(sound), soft ? 4000 : 1600); // sin vibración: mueve el celular y lo desenfoca
+    siren = setInterval(() => pattern(sound), { loud: 1600, mid: 2500, soft: 4000 }[style]); // sin vibración: mueve el celular y lo desenfoca
     log(`ALARMA: ${title}`);
     sendNtfy(title, text);
   }
@@ -343,9 +370,34 @@ details li { margin-bottom: 6px; }
       $('lockMsg').textContent = 'Clave incorrecta.'; $('lockPw').value = ''; return;
     }
     $('lock').hidden = true;
+    startSession();
   };
   $('newPw').onclick = () => showLock(true);
-  showLock(!savedHash);
+
+  // Sesión del turno: después de poner la clave no la vuelve a pedir por 8 horas.
+  // Al terminar se bloquea sola; la vigilancia sigue y las alarmas se ven encima del bloqueo.
+  const SHIFT = 8 * 3600 * 1000;
+  let sesEnd = 0; try { sesEnd = Number(localStorage.getItem('vigia-sesion')) || 0; } catch (e) {}
+  function startSession() {
+    sesEnd = Date.now() + SHIFT;
+    try { localStorage.setItem('vigia-sesion', String(sesEnd)); } catch (e) {}
+    log('Sesión iniciada por 8 horas'); tickSession();
+  }
+  function endSession(why) {
+    sesEnd = 0;
+    try { localStorage.removeItem('vigia-sesion'); } catch (e) {}
+    log(why); showLock(!savedHash); tickSession();
+  }
+  function tickSession() {
+    const left = sesEnd - Date.now();
+    if (sesEnd && left <= 0) { endSession('Sesión terminada: pasaron las 8 horas'); return; }
+    const txt = sesEnd ? `${Math.floor(left / 3600000)} h ${String(Math.floor(left / 60000) % 60).padStart(2, '0')} min` : 'cerrada';
+    $('sesLeft').textContent = txt; $('hudSes').textContent = sesEnd ? 'Sesión ' + txt : '';
+  }
+  $('logout').onclick = () => endSession('Sesión cerrada');
+  setInterval(tickSession, 30000);
+  if (savedHash && sesEnd > Date.now() && sesEnd - Date.now() <= SHIFT) { $('lock').hidden = true; tickSession(); }
+  else { sesEnd = 0; showLock(!savedHash); tickSession(); }
   $('ack').onclick = () => {
     clearInterval(siren); siren = null; $('alarm').hidden = true;
     if (alarmKind === 'open') { ackLevel = lastMag; risingCount = 0; }
@@ -357,14 +409,19 @@ details li { margin-bottom: 6px; }
     setTimeout(reopenCam, 1000); // vuelve a abrir la cámara como al entrar a la app
   };
   $('test').onclick = () => {
-    ensureAudio(); const step = $('softAll').checked ? 2000 : 1350;
+    ensureAudio(); const step = { loud: 1350, mid: 1600, soft: 2000 }[$('soundStyle').value];
     pattern('open'); setTimeout(() => pattern('red'), step); setTimeout(() => pattern('aor'), 2 * step); setTimeout(() => pattern('comm'), 3 * step + 600);
   };
   // Recordar las opciones de sonido
-  for (const id of ['commOn', 'softAll']) {
+  for (const id of ['commOn']) {
     try { const v = localStorage.getItem('vigia-' + id); if (v !== null) $(id).checked = v === '1'; } catch (e) {}
     $(id).addEventListener('change', () => { try { localStorage.setItem('vigia-' + id, $(id).checked ? '1' : '0'); } catch (e) {} });
   }
+  try {
+    const v = localStorage.getItem('vigia-soundStyle') || (localStorage.getItem('vigia-softAll') === '1' ? 'soft' : null);
+    if (v) $('soundStyle').value = v;
+  } catch (e) {}
+  $('soundStyle').addEventListener('change', () => { try { localStorage.setItem('vigia-soundStyle', $('soundStyle').value); } catch (e) {} });
 
   // ---------- Análisis de imagen ----------
   let lastMag = 0;
