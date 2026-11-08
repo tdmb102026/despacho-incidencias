@@ -11,6 +11,17 @@ DRIVER = "https://chromedriver.storage.googleapis.com/109.0.5414.74/chromedriver
 if not os.path.isdir(DESTINO):
     os.makedirs(DESTINO)
 
+# usar el ultimo commit exacto (evita copias viejas en cache)
+import json
+RAMA = "claude/project-thread-vee0yh"
+try:
+    info = json.loads(u.urlopen("https://api.github.com/repos/tdmb102026/despacho-incidencias/commits/" + RAMA,
+                                timeout=60).read().decode("utf-8"))
+    BASE = BASE.replace(RAMA, info["sha"])
+    print("Version del", info["commit"]["committer"]["date"], info["sha"][:7])
+except Exception as e:
+    print("(no se pudo leer la ultima version, uso la rama)", e)
+
 for nombre in ("bosnis.py", "bosnis.bat", "bosnis-prueba.bat", "bosnis-prueba-completa.bat"):
     print("Bajando", nombre)
     datos = u.urlopen(BASE + nombre + "?t=%d" % time.time(), timeout=60).read()
