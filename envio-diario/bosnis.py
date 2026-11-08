@@ -123,6 +123,10 @@ def abrir_chrome():
     op.add_argument("--user-data-dir=" + PERFIL_CHROME)
     op.add_argument("--window-size=1600,1000")
     op.add_argument("--start-maximized")
+    op.add_argument("--disable-gpu")
+    op.add_argument("--log-level=3")
+    op.add_experimental_option("excludeSwitches", ["enable-logging"])
+    op.add_experimental_option("detach", True)   # Chrome no se cierra si el programa termina con error
     d = webdriver.Chrome(executable_path=CHROMEDRIVER, chrome_options=op)
     d.set_page_load_timeout(90)
     return d
@@ -166,10 +170,7 @@ def clic_texto(driver, texto, timeout=30):
 def marcar(driver, id_, valor=True):
     e = driver.find_element_by_id(id_)
     if e.is_selected() != valor:
-        try:
-            e.click()
-        except Exception:
-            driver.execute_script("arguments[0].click();", e)
+        driver.execute_script("arguments[0].scrollIntoView({block:'center'});arguments[0].click();", e)
     time.sleep(0.5)
 
 
@@ -190,30 +191,39 @@ def generar_reporte(driver, fecha, carpeta):
     WebDriverWait(driver, 60).until(EC.presence_of_element_located(("id", "fechaReporteFrontera")))
     time.sleep(2)
 
-    marcar(driver, "_dbcprivate_checklist_archivosAdicionalesReporteFrontera_input_4DE4")
-    marcar(driver, "_dbcprivate_checklist_archivosAdicionalesReporteFrontera_input_BOSNI")
-    marcar(driver, "_dbcprivate_checklist_reemplazarArchivosReporteFrontera_input_replace")
-
     f = driver.find_element_by_id("fechaReporteFrontera")
     f.click()
     f.send_keys(Keys.CONTROL, "a")
     f.send_keys(fecha.strftime("%d/%m/%Y"))
-    f.send_keys(Keys.TAB)
+    f.send_keys(Keys.ENTER)
+    time.sleep(1)
+    f.send_keys(Keys.ESCAPE)
+    # cerrar el calendario que queda abierto encima de los botones
+    driver.execute_script("document.activeElement && document.activeElement.blur();")
+    driver.find_element_by_tag_name("body").send_keys(Keys.ESCAPE)
     time.sleep(2)
     valor = driver.find_element_by_id("fechaReporteFrontera").get_attribute("value")
     if valor != fecha.strftime("%d/%m/%Y"):
         raise RuntimeError("No se pudo poner la fecha en DemandaMaxima (quedo %s)." % valor)
 
+    marcar(driver, "_dbcprivate_checklist_archivosAdicionalesReporteFrontera_input_4DE4")
+    marcar(driver, "_dbcprivate_checklist_archivosAdicionalesReporteFrontera_input_BOSNI")
+    marcar(driver, "_dbcprivate_checklist_reemplazarArchivosReporteFrontera_input_replace")
+    for id_ in ("_dbcprivate_checklist_archivosAdicionalesReporteFrontera_input_4DE4",
+                "_dbcprivate_checklist_archivosAdicionalesReporteFrontera_input_BOSNI"):
+        if not driver.find_element_by_id(id_).is_selected():
+            raise RuntimeError("No se pudo marcar %s" % id_)
+
     # boton GENERAR REPORTE visible de la seccion frontera
     boton = None
-    for e in driver.find_elements_by_xpath("//*[self::button or self::a or self::div][normalize-space(.)='GENERAR REPORTE']"):
+    for e in driver.find_elements_by_xpath("//button[normalize-space(.)='GENERAR REPORTE']") + \
+            driver.find_elements_by_xpath("//*[self::a or self::div][normalize-space(.)='GENERAR REPORTE' and not(*[normalize-space(.)='GENERAR REPORTE'])]"):
         if e.is_displayed():
             boton = e
             break
     if boton is None:
         raise RuntimeError("No se encontro el boton GENERAR REPORTE.")
-    driver.execute_script("arguments[0].scrollIntoView({block:'center'});", boton)
-    boton.click()
+    driver.execute_script("arguments[0].scrollIntoView({block:'center'});arguments[0].click();", boton)
     log("   reporte pedido, esperando los 9 archivos (hasta 20 min)...")
 
     fin = time.time() + 20 * 60
@@ -387,6 +397,11 @@ def main():
             driver.quit()
         else:
             log("Chrome queda abierto para que revises.")
+            if a.prueba:
+                try:
+                    input("\nPresiona Enter para salir...")
+                except Exception:
+                    pass
     log("==== FIN: %s ====" % ("TODO OK" if errores == 0 else "%d problema(s)" % errores))
     return 0 if errores == 0 else 1
 
