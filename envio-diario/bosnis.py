@@ -388,9 +388,17 @@ def revisar_y_capturar(driver, fecha, prueba=False):
             pass
     time.sleep(3)
     texto = ""
+    info = None
     for e in driver.find_elements_by_css_selector(".dataTables_info"):
         if e.is_displayed():
             texto = e.text
+            info = e
+    # que entre en la imagen desde el titulo hasta "Mostrando registros ... de 432" y los botones de paginas
+    driver.execute_script("document.body.style.zoom='0.8';")
+    time.sleep(1)
+    if info is not None:
+        driver.execute_script("arguments[0].scrollIntoView({block:'end'});window.scrollBy(0, 60);", info)
+    time.sleep(1)
     log("Datos Ingresados: %s" % (texto or "(no se encontro el total)"))
     if prueba:
         carpeta = os.path.join(AQUI, "capturas-prueba")
@@ -423,7 +431,7 @@ def main():
     if not os.path.isdir(CARPETA_LOG):
         os.makedirs(CARPETA_LOG)
     _log_file = open(os.path.join(CARPETA_LOG, "bosnis_%s.txt" % fecha_txt), "a")
-    log("==== BOSNI v5 %s %s====" % (fecha_txt, "(PRUEBA) " if a.prueba else ""))
+    log("==== BOSNI v6 %s %s====" % (fecha_txt, "(PRUEBA) " if a.prueba else ""))
 
     carpeta = carpeta_dia(fecha)
     log("Carpeta: %s" % carpeta)
