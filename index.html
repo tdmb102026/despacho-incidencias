@@ -97,6 +97,11 @@ details pre{white-space:pre-wrap;word-break:break-word;font-family:var(--mono);f
 .cam-shot{width:76px;height:76px;border-radius:50%;background:transparent;border:5px solid #fff;padding:0;position:relative}
 .cam-shot::after{content:"";position:absolute;inset:5px;border-radius:50%;background:#fff}
 .cam-shot:active::after{inset:9px}
+.selpri{position:fixed;inset:0;z-index:30;background:var(--bg);display:flex;flex-direction:column;padding:12px 12px max(12px,env(safe-area-inset-bottom));gap:10px}
+.selpri-h{display:flex;justify-content:space-between;align-items:center}
+.selpri-g{flex:1;display:grid;gap:8px;min-height:0}
+.selpri-g button{background:var(--surface);color:var(--ink);border:1.5px solid var(--line);border-radius:12px;font:inherit;font-weight:600;font-size:clamp(.9rem,4.2vw,1.25rem);padding:4px;min-height:0;overflow:hidden}
+.selpri-g button.se-back{background:var(--chip);color:var(--accent)}
 .cam-zoom{display:flex;gap:8px}
 .cam-zoom button{background:rgba(0,0,0,.45);color:#fff;width:40px;height:40px;border-radius:50%;font-size:.8rem;font-weight:600;padding:0}
 .cam-zoom button[aria-pressed="true"]{color:#ffd54a}
@@ -139,7 +144,7 @@ details pre{white-space:pre-wrap;word-break:break-word;font-family:var(--mono);f
 <div class="wrap">
   <header>
     <h1>Despacho de Incidencias</h1>
-    <span class="eyebrow">EEASA · CECON · v46</span>
+    <span class="eyebrow">EEASA · CECON · v47</span>
   </header>
 
   <!-- Al abrir: con IA (más precisa, con contraseña) o sin IA (el lector del celular, como siempre) -->
@@ -188,6 +193,7 @@ details pre{white-space:pre-wrap;word-break:break-word;font-family:var(--mono);f
           <div class="inmic"><input id="f-pri" autocomplete="off" autocapitalize="words" placeholder="Primario…"><button class="mic" type="button" data-mic="f-pri" aria-label="Dictar el primario" hidden>🎤</button></div>
           <div class="sugs" id="s-pri" hidden></div>
           <span class="flag" id="w-pri" hidden></span>
+          <button class="back" id="pri-se" type="button" style="justify-self:start">Elegir por subestación</button>
         </div>
         <button class="pill" id="again" hidden>Nueva foto ›</button></div>
       <div class="pick" id="pick">
@@ -288,6 +294,7 @@ details pre{white-space:pre-wrap;word-break:break-word;font-family:var(--mono);f
   </section>
 </div>
 
+<div class="selpri" id="selpri" hidden><div class="selpri-h"><b id="selpri-t"></b><button class="back" id="selpri-x" type="button">Cerrar</button></div><div class="selpri-g" id="selpri-g"></div></div>
 <div class="view" id="view" hidden><img id="view-img" alt="Foto de la incidencia"><button class="cam-x" id="view-x" type="button">Cerrar</button><a class="cam-x view-dl" id="view-dl" download="incidencia.jpg">Guardar foto</a></div>
 
 <div class="cam" id="cam" hidden>
@@ -303,9 +310,9 @@ details pre{white-space:pre-wrap;word-break:break-word;font-family:var(--mono);f
 </div>
 
 <script src="ocr/tesseract.min.js"></script>
-<script src="datos/fallas.js?v=46"></script>
+<script src="datos/fallas.js?v=47"></script>
 <script>
-const ALIM = [["Agoyán", "Ulba Río Verde", "Ag. Baños", ""], ["Atocha", "Pinllo", "Reparaciones CECON", "Móvil 30 Rural"], ["Atocha", "Pilisurco", "Reparaciones CECON", "Móvil 30 Rural"], ["Atocha", "Atocha", "Reparaciones CECON", ""], ["Atocha", "Maldonado", "Reparaciones CECON", ""], ["Atocha", "Martínez", "Reparaciones CECON", ""], ["Atocha", "La Victoria", "Reparaciones CECON", ""], ["Baños", "Baños", "Ag. Baños", ""], ["Baños", "San Vicente", "Ag. Baños", ""], ["Baños", "Pititig", "Ag. Baños", ""], ["Batán", "España", "Reparaciones CECON", ""], ["Batán", "Pérez de Anda", "Reparaciones CECON", ""], ["Batán", "Urbina", "Reparaciones CECON", ""], ["Batán", "Ficoa", "Reparaciones CECON", ""], ["Batán", "Miraflores", "Reparaciones CECON", ""], ["Batán", "Quisapincha", "Móvil 30 Rural", ""], ["Batán", "El Tropezón", "Móvil 30 Rural", "Reparaciones CECON"], ["Huachi", "Santa Rosa", "Móvil 30 Rural", ""], ["Huachi", "Cervantes", "Reparaciones CECON", ""], ["Huachi", "Magdalena", "Reparaciones CECON", "Móvil 30 Rural"], ["Huachi", "José Peralta", "Reparaciones CECON", ""], ["Huachi", "Víctor Hugo", "Reparaciones CECON", ""], ["Huachi", "Mall de los Andes", "Reparaciones CECON", ""], ["Huachi", "Shopping Ambato", "Reparaciones CECON", ""], ["Huachi", "Miñarica", "Reparaciones CECON", ""], ["Huachi", "Carmelitas", "Reparaciones CECON", "Móvil 30 Rural"], ["Huachi", "Manuelita Sáenz", "Reparaciones CECON", ""], ["Huachi", "Industrial", "Reparaciones CECON", "Móvil 30 Rural"], ["Loreto", "Ingahurco", "Reparaciones CECON", ""], ["Loreto", "La Pradera", "Reparaciones CECON", ""], ["Loreto", "Catiglata", "Reparaciones CECON", ""], ["Loreto", "Unidad Nacional", "Reparaciones CECON", ""], ["Loreto", "Letamendi", "Reparaciones CECON", ""], ["Loreto", "Cashapamba", "Reparaciones CECON", ""], ["Loreto", "Ferroviaria", "Reparaciones CECON", ""], ["Loreto", "Subterránea", "Reparaciones CECON", ""], ["Loreto", "12 de Noviembre", "Reparaciones CECON", ""], ["Loreto", "San Antonio", "Reparaciones CECON", ""], ["Loreto", "Montalvo", "Reparaciones CECON", "Móvil 30 Rural;Agencia Quero CECON"], ["Loreto", "Manzana de Oro", "Reparaciones CECON", ""], ["Loreto", "Tisaleo", "Móvil 30 Rural", "Reparaciones CECON"], ["Loreto", "Huachi Grande", "Reparaciones CECON", "Móvil 30 Rural"], ["Mushullacta", "Pablo VI", "DZOP INCIDENCIAS", ""], ["Mushullacta", "Simón Bolívar", "DZOP INCIDENCIAS", ""], ["Mushullacta", "Palora", "DZOP INCIDENCIAS", ""], ["Mushullacta", "Consuelo", "DZOP INCIDENCIAS", ""], ["Oriente", "Bolivariana", "Reparaciones CECON", ""], ["Oriente", "Techo Propio", "Reparaciones CECON", ""], ["Oriente", "Real Audiencia", "Reparaciones CECON", ""], ["Oriente", "La Joya", "Reparaciones CECON", ""], ["Oriente", "El Cóndor", "Reparaciones CECON", ""], ["Oriente", "Universidad", "Reparaciones CECON", ""], ["Oriente", "American Park", "Reparaciones CECON", ""], ["Pelileo", "El Tambo", "Ag. Pelileo", ""], ["Pelileo", "Olmedo", "Ag. Pelileo", ""], ["Pelileo", "Pelileo", "Ag. Pelileo", ""], ["Pelileo", "Patate", "Ag. Pelileo", ""], ["Pelileo", "La Moya", "Ag. Pelileo", ""], ["Pelileo", "Huambaló", "Ag. Pelileo", ""], ["Península", "Izamba", "Reparaciones CECON", ""], ["Península", "Quillán", "Reparaciones CECON", "Móvil 30 Rural"], ["Península", "Indoamérica", "Reparaciones CECON", ""], ["Península", "Península", "Reparaciones CECON", ""], ["Pilahuín", "Pilahuín", "Móvil 30 Rural", ""], ["Pilahuín", "Pasa", "Móvil 30 Rural", ""], ["Pilahuín", "Yatzaputzán", "Móvil 30 Rural", ""], ["Pilahuín", "Chibuleo", "Móvil 30 Rural", ""], ["Píllaro", "Píllaro", "Ag. Píllaro", ""], ["Píllaro", "San Miguelito", "Ag. Píllaro", ""], ["Píllaro", "Santa Marianita", "Ag. Píllaro", ""], ["Píllaro", "Marcos Espinel", "Ag. Píllaro", ""], ["Píllaro", "San Andrés", "Ag. Píllaro", ""], ["Puyo 1", "Mera", "DZOP INCIDENCIAS", ""], ["Puyo 1", "Shell", "DZOP INCIDENCIAS", ""], ["Puyo 1", "Central", "DZOP INCIDENCIAS", ""], ["Puyo 1", "Circunvalación", "DZOP INCIDENCIAS", ""], ["Puyo 1", "Capricho", "DZOP INCIDENCIAS", ""], ["Puyo 1", "Tarqui", "DZOP INCIDENCIAS", ""], ["Puyo 2", "Calvario", "DZOP INCIDENCIAS", ""], ["Puyo 2", "Veracruz", "DZOP INCIDENCIAS", ""], ["Puyo 2", "Arajuno", "DZOP INCIDENCIAS", ""], ["Puyo 2", "Eloy Alfaro", "DZOP INCIDENCIAS", ""], ["Puyo 2", "La Merced", "DZOP INCIDENCIAS", ""], ["Quero", "Benítez", "Agencia Quero CECON", "Ag. Pelileo"], ["Quero", "Quero", "Agencia Quero CECON", ""], ["Quero", "Cevallos", "Agencia Quero CECON", ""], ["Quero", "Mocha", "Agencia Quero CECON", ""], ["Quero", "Hualcanga", "Agencia Quero CECON", ""], ["Samanga", "Pisque", "Reparaciones CECON", "Móvil 30 Rural"], ["Samanga", "Paso Lateral", "Reparaciones CECON", ""], ["Samanga", "Macasto", "Reparaciones CECON", "Móvil 30 Rural"], ["Samanga", "Cunchibamba", "Reparaciones CECON", ""], ["Samanga", "PIA 1", "Reparaciones CECON", ""], ["Samanga", "Puerto Arturo", "Reparaciones CECON", "Móvil 30 Rural"], ["Samanga", "Camino Real", "Reparaciones CECON", "Móvil 30 Rural"], ["Samanga", "PIA 2", "Reparaciones CECON", ""], ["Samanga", "Plasticaucho", "Reparaciones CECON", ""], ["Tena", "Amazonas", "DZON ATENCIÓN INCIDENCIAS", ""], ["Tena", "Arosemena Tola", "DZON ATENCIÓN INCIDENCIAS", ""], ["Tena", "Paushiyacu", "DZON ATENCIÓN INCIDENCIAS", ""], ["Tena", "Perimetral", "DZON ATENCIÓN INCIDENCIAS", ""], ["Tena", "Puerto Napo", "DZON ATENCIÓN INCIDENCIAS", ""], ["Tena Norte", "Sumaco", "DZON ATENCIÓN INCIDENCIAS", ""], ["Tena Norte", "Muyuna", "DZON ATENCIÓN INCIDENCIAS", ""], ["Tena Norte", "Archidona", "DZON ATENCIÓN INCIDENCIAS", ""], ["Tena Norte", "Jumandi", "DZON ATENCIÓN INCIDENCIAS", ""], ["Totoras", "Totoras", "Reparaciones CECON", ""], ["Totoras", "Bioalimentar", "Reparaciones CECON", ""], ["Totoras", "Palagua", "Reparaciones CECON", "Móvil 30 Rural"], ["Totoras", "San Francisco", "Reparaciones CECON", ""], ["Totoras", "Picaigua", "Reparaciones CECON", "Móvil 30 Rural"], ["Totoras", "Salasaca", "Reparaciones CECON", "Ag. Pelileo"]]; // [subestación, alimentador, grupo principal, grupo alterno ("a;b")]
+const ALIM = [["Agoyán", "Ulba Río Verde", "Ag. Baños", ""], ["Atocha", "Pinllo", "Reparaciones CECON", "Móvil 30 Rural"], ["Atocha", "Pilisurco", "Reparaciones CECON", "Móvil 30 Rural"], ["Atocha", "Atocha", "Reparaciones CECON", ""], ["Atocha", "Maldonado", "Reparaciones CECON", ""], ["Atocha", "Martínez", "Reparaciones CECON", ""], ["Atocha", "La Victoria", "Reparaciones CECON", ""], ["Baños", "Baños", "Ag. Baños", ""], ["Baños", "San Vicente", "Ag. Baños", ""], ["Baños", "Pititig", "Ag. Baños", ""], ["Batán", "España", "Reparaciones CECON", ""], ["Batán", "Pérez de Anda", "Reparaciones CECON", ""], ["Batán", "Urbina", "Reparaciones CECON", ""], ["Batán", "Ficoa", "Reparaciones CECON", ""], ["Batán", "Miraflores", "Reparaciones CECON", ""], ["Batán", "Quisapincha", "Móvil 30 Rural", ""], ["Batán", "El Tropezón", "Móvil 30 Rural", "Reparaciones CECON"], ["Huachi", "Santa Rosa", "Móvil 30 Rural", ""], ["Huachi", "Cervantes", "Reparaciones CECON", ""], ["Huachi", "Magdalena", "Reparaciones CECON", "Móvil 30 Rural"], ["Huachi", "José Peralta", "Reparaciones CECON", ""], ["Huachi", "Víctor Hugo", "Reparaciones CECON", ""], ["Huachi", "Mall de los Andes", "Reparaciones CECON", ""], ["Huachi", "Shopping Ambato", "Reparaciones CECON", ""], ["Huachi", "Miñarica", "Reparaciones CECON", ""], ["Huachi", "Carmelitas", "Reparaciones CECON", "Móvil 30 Rural"], ["Huachi", "Manuelita Sáenz", "Reparaciones CECON", ""], ["Huachi", "Industrial", "Reparaciones CECON", "Móvil 30 Rural"], ["Loreto", "Ingahurco", "Reparaciones CECON", ""], ["Loreto", "La Pradera", "Reparaciones CECON", ""], ["Loreto", "Catiglata", "Reparaciones CECON", ""], ["Loreto", "Unidad Nacional", "Reparaciones CECON", ""], ["Loreto", "Letamendi", "Reparaciones CECON", ""], ["Loreto", "Cashapamba", "Reparaciones CECON", ""], ["Loreto", "Ferroviaria", "Reparaciones CECON", ""], ["Loreto", "Subterránea", "Reparaciones CECON", ""], ["Loreto", "12 de Noviembre", "Reparaciones CECON", ""], ["Loreto", "San Antonio", "Reparaciones CECON", ""], ["Loreto", "Montalvo", "Reparaciones CECON", "Móvil 30 Rural;Agencia Quero CECON"], ["Loreto", "Manzana de Oro", "Reparaciones CECON", ""], ["Loreto", "Tisaleo", "Móvil 30 Rural", "Reparaciones CECON"], ["Loreto", "Huachi Grande", "Reparaciones CECON", "Móvil 30 Rural"], ["Mushullacta", "Pablo Sexto", "DZOP INCIDENCIAS", ""], ["Mushullacta", "Simón Bolívar", "DZOP INCIDENCIAS", ""], ["Mushullacta", "Palora", "DZOP INCIDENCIAS", ""], ["Mushullacta", "Consuelo", "DZOP INCIDENCIAS", ""], ["Oriente", "Bolivariana", "Reparaciones CECON", ""], ["Oriente", "Techo Propio", "Reparaciones CECON", ""], ["Oriente", "Real Audiencia", "Reparaciones CECON", ""], ["Oriente", "La Joya", "Reparaciones CECON", ""], ["Oriente", "El Cóndor", "Reparaciones CECON", ""], ["Oriente", "Universidad", "Reparaciones CECON", ""], ["Oriente", "American Park", "Reparaciones CECON", ""], ["Pelileo", "El Tambo", "Ag. Pelileo", ""], ["Pelileo", "Olmedo", "Ag. Pelileo", ""], ["Pelileo", "Pelileo", "Ag. Pelileo", ""], ["Pelileo", "Patate", "Ag. Pelileo", ""], ["Pelileo", "La Moya", "Ag. Pelileo", ""], ["Pelileo", "Huambaló", "Ag. Pelileo", ""], ["Península", "Izamba", "Reparaciones CECON", ""], ["Península", "Quillán", "Reparaciones CECON", "Móvil 30 Rural"], ["Península", "Indoamérica", "Reparaciones CECON", ""], ["Península", "Península", "Reparaciones CECON", ""], ["Pilahuín", "Pilahuín", "Móvil 30 Rural", ""], ["Pilahuín", "Pasa", "Móvil 30 Rural", ""], ["Pilahuín", "Yatzaputzán", "Móvil 30 Rural", ""], ["Pilahuín", "Chibuleo", "Móvil 30 Rural", ""], ["Píllaro", "Píllaro", "Ag. Píllaro", ""], ["Píllaro", "San Miguelito", "Ag. Píllaro", ""], ["Píllaro", "Santa Marianita", "Ag. Píllaro", ""], ["Píllaro", "Marcos Espinel", "Ag. Píllaro", ""], ["Píllaro", "San Andrés", "Ag. Píllaro", ""], ["Puyo 1", "Mera", "DZOP INCIDENCIAS", ""], ["Puyo 1", "Shell", "DZOP INCIDENCIAS", ""], ["Puyo 1", "Central", "DZOP INCIDENCIAS", ""], ["Puyo 1", "Circunvalación", "DZOP INCIDENCIAS", ""], ["Puyo 1", "Capricho", "DZOP INCIDENCIAS", ""], ["Puyo 1", "Tarqui", "DZOP INCIDENCIAS", ""], ["Puyo 2", "Calvario", "DZOP INCIDENCIAS", ""], ["Puyo 2", "Veracruz", "DZOP INCIDENCIAS", ""], ["Puyo 2", "Arajuno", "DZOP INCIDENCIAS", ""], ["Puyo 2", "Eloy Alfaro", "DZOP INCIDENCIAS", ""], ["Puyo 2", "La Merced", "DZOP INCIDENCIAS", ""], ["Quero", "Benítez", "Agencia Quero CECON", "Ag. Pelileo"], ["Quero", "Quero", "Agencia Quero CECON", ""], ["Quero", "Cevallos", "Agencia Quero CECON", ""], ["Quero", "Mocha", "Agencia Quero CECON", ""], ["Quero", "Hualcanga", "Agencia Quero CECON", ""], ["Samanga", "Pisque", "Reparaciones CECON", "Móvil 30 Rural"], ["Samanga", "Paso Lateral", "Reparaciones CECON", ""], ["Samanga", "Macasto", "Reparaciones CECON", "Móvil 30 Rural"], ["Samanga", "Cunchibamba", "Reparaciones CECON", ""], ["Samanga", "PIA 1", "Reparaciones CECON", ""], ["Samanga", "Puerto Arturo", "Reparaciones CECON", "Móvil 30 Rural"], ["Samanga", "Camino Real", "Reparaciones CECON", "Móvil 30 Rural"], ["Samanga", "PIA 2", "Reparaciones CECON", ""], ["Samanga", "Plasticaucho", "Reparaciones CECON", ""], ["Tena", "Amazonas", "DZON ATENCIÓN INCIDENCIAS", ""], ["Tena", "Arosemena Tola", "DZON ATENCIÓN INCIDENCIAS", ""], ["Tena", "Paushiyacu", "DZON ATENCIÓN INCIDENCIAS", ""], ["Tena", "Perimetral", "DZON ATENCIÓN INCIDENCIAS", ""], ["Tena", "Puerto Napo", "DZON ATENCIÓN INCIDENCIAS", ""], ["Tena Norte", "Sumaco", "DZON ATENCIÓN INCIDENCIAS", ""], ["Tena Norte", "Muyuna", "DZON ATENCIÓN INCIDENCIAS", ""], ["Tena Norte", "Archidona", "DZON ATENCIÓN INCIDENCIAS", ""], ["Tena Norte", "Jumandi", "DZON ATENCIÓN INCIDENCIAS", ""], ["Totoras", "Totoras", "Reparaciones CECON", ""], ["Totoras", "Bioalimentar", "Reparaciones CECON", ""], ["Totoras", "Palagua", "Reparaciones CECON", "Móvil 30 Rural"], ["Totoras", "San Francisco", "Reparaciones CECON", ""], ["Totoras", "Picaigua", "Reparaciones CECON", "Móvil 30 Rural"], ["Totoras", "Salasaca", "Reparaciones CECON", "Ag. Pelileo"]]; // [subestación, alimentador, grupo principal, grupo alterno ("a;b")]
 const EXTRA = { "Huambaló": ["PINGUE"] }; // sectores de la Ubicación que pertenecen a un primario
 const MOTIVOS = [
   ["Sector sin servicio", ["SECTOR SIN SERV", "SECTOR SIN"]],
@@ -392,7 +399,9 @@ let photoFile = null, grupo = "", worker = null, workerReady = null;
 
 $("motivos").innerHTML = MOTIVOS.map(m => `<option value="${m[0]}">`).join("");
 const PRIS = ALIM.map(a => ({ name: a[1], sub: a[0], k: squash(a[1]), ks: squash(a[0]) }));
-const priName = v => (PRIS.find(x => x.k === squash(v)) || {}).name || "";
+// Nombres viejos (lo aprendido antes del cambio) → nombre actual
+const PRI_ANTES = { PABLOVI: "Pablo Sexto", MAGDALENAS: "Magdalena" };
+const priName = v => (PRIS.find(x => x.k === squash(v)) || {}).name || PRI_ANTES[squash(v)] || "";
 function suggest() {
   const q = squash($("f-pri").value), box = $("s-pri");
   const list = q && !priName($("f-pri").value) ? PRIS.filter(x => x.k.includes(q) || x.ks.includes(q))
@@ -446,6 +455,33 @@ $("f-pri").addEventListener("blur", () => {
   if (!$("f-pri").value.trim() && priBefore) { $("f-pri").value = priBefore; refresh(); }
 });
 $("f-pri").addEventListener("change", () => { $("w-pri").hidden = true; refresh(); chips($("c-pri"), [...$("c-pri").querySelectorAll("button")].map(b => b.textContent), priName($("f-pri").value), pickPri); });
+// Selector de pantalla completa: subestaciones y luego sus primarios, en botones que llenan la pantalla
+function gridFill(items, onPick, extra) {
+  const g = $("selpri-g"), n = items.length + (extra ? 1 : 0);
+  const cols = n <= 5 ? 1 : n <= 12 ? 2 : 3;
+  g.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
+  g.style.gridTemplateRows = `repeat(${Math.ceil(n / cols)}, 1fr)`;
+  g.innerHTML = "";
+  if (extra) g.appendChild(extra);
+  for (const it of items) {
+    const b = document.createElement("button"); b.type = "button"; b.textContent = it;
+    b.onclick = () => onPick(it); g.appendChild(b);
+  }
+}
+function selSE() {
+  $("selpri-t").textContent = "Subestación";
+  gridFill([...new Set(ALIM.map(a => a[0]))], selPri);
+}
+function selPri(se) {
+  $("selpri-t").textContent = "Primario · S/E " + se;
+  const back = document.createElement("button"); back.type = "button"; back.className = "se-back"; back.textContent = "‹ Subestaciones"; back.onclick = selSE;
+  gridFill(ALIM.filter(a => a[0] === se).map(a => a[1]), name => { history.back(); pickPri(name); }, back);
+}
+function abrirSelPri() {
+  history.pushState({ v: "res" }, ""); $("selpri").hidden = false; selSE();
+}
+$("pri-se").onclick = abrirSelPri;
+$("selpri-x").onclick = () => history.back();
 function pickPri(v) { $("f-pri").value = v; $("s-pri").hidden = true; $("f-pri").blur(); $("f-pri").dispatchEvent(new Event("change")); }
 
 // Dos lectores trabajan a la vez (el celular tiene varios núcleos): uno lee la foto completa y el otro el comentario
@@ -613,7 +649,7 @@ function yellowRect(src) {
 }
 // Pantallas en el historial del navegador, para que el gesto atrás de Android vuelva dentro de la app
 function show(v) {
-  closeCam(); $("view").hidden = true;
+  closeCam(); $("view").hidden = true; $("selpri").hidden = true;
   if (v === "cam") v = camFrom; if (v === "view") v = viewFrom;
   $("modo").hidden = v !== "modo"; $("clave").hidden = v !== "clave";
   $("home").hidden = v !== "home"; $("inc").hidden = v !== "inc" && v !== "res";
@@ -784,6 +820,7 @@ function showResult(p) {
   else if (history.state && history.state.v === "view") { history.replaceState({ v: "res" }, ""); show("res"); }
   else { history.pushState({ v: "res" }, ""); show("res"); }
   if (!p.restaurada) guardarPend(p);
+  if (!p.prims.length && !p.restaurada) abrirSelPri();
 }
 // Mientras lee: tocar la miniatura muestra la foto en grande, para decidir si se cancela
 $("thumb").onclick = () => {
@@ -894,8 +931,8 @@ $("share").onclick = async () => {
 };
 </script>
 
-<script src="fallas.js?v=46"></script>
-<script src="ia.js?v=46"></script>
+<script src="fallas.js?v=47"></script>
+<script src="ia.js?v=47"></script>
 <script>
 // Actualización: al volver a la app se busca versión nueva; si llega, se recarga sola en el inicio
 // o aparece un aviso para tocar (así no se pierde una incidencia a medio enviar)

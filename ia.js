@@ -75,7 +75,7 @@ function iaPrims(out) {
   const ubic = out.ubicacion || "", com = out.comentario || "";
   const learned = ubic ? iaUbicPri(ubic) : "";
   const found = parseOCR(ubic + "\n" + com, com).prims;
-  return [learned, out.primario, ...found].filter((v, i, l) => v && priName(v) && l.indexOf(v) === i);
+  return [learned, out.primario, ...found].map(v => v && priName(v)).filter((v, i, l) => v && l.indexOf(v) === i);
 }
 // El callcenter escribe la misma ubicación de muchas formas («ULBA BANOS», «ulba-baños», «ULBA BAÑOS SECTOR…»):
 // si no está igual, se toma la aprendida que más se parece o que la contiene
