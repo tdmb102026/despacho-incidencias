@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Instala/actualiza el programa BOSNI en C:\\bosnis (Python 3.4)."""
 from __future__ import print_function
-import io, os, zipfile
+import io, os, time, zipfile
 import urllib.request as u
 
 DESTINO = r"C:\bosnis"
@@ -13,7 +13,7 @@ if not os.path.isdir(DESTINO):
 
 for nombre in ("bosnis.py", "bosnis.bat", "bosnis-prueba.bat", "bosnis-prueba-completa.bat"):
     print("Bajando", nombre)
-    datos = u.urlopen(BASE + nombre, timeout=60).read()
+    datos = u.urlopen(BASE + nombre + "?t=%d" % time.time(), timeout=60).read()
     open(os.path.join(DESTINO, nombre), "wb").write(datos)
 
 if not os.path.isfile(os.path.join(DESTINO, "chromedriver.exe")):
