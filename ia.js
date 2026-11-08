@@ -10,12 +10,10 @@ let modoIA = false;
 const iaGet = k => { try { return localStorage.getItem(k) || ""; } catch { return ""; } };
 const iaPut = (k, v) => { try { v ? localStorage.setItem(k, v) : localStorage.removeItem(k); } catch {} };
 const iaUrl = () => IA_URL || iaGet("ia-servidor");
-// Turnos: 06:00–14:00, 14:00–22:00, 22:00–06:00. La sesión se cierra al terminar el turno en curso;
-// si se entra en la última media hora antes del cambio (llegando temprano), dura hasta el fin del turno siguiente.
+// Turnos: 06:00–14:00, 14:00–22:00, 22:00–06:00. La sesión se cierra al terminar el turno en curso.
 function finTurno(ahora = new Date()) {
   const d = new Date(ahora); d.setMinutes(0, 0, 0);
   do d.setHours(d.getHours() + 1); while (![6, 14, 22].includes(d.getHours()));
-  if (d - ahora < 30 * 60e3) d.setHours(d.getHours() + 8);
   return d.getTime();
 }
 // Contraseña del turno en curso ("" si ya pasó el turno o se tocó Salir)
