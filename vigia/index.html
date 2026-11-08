@@ -149,7 +149,7 @@ details li { margin-bottom: 6px; }
     <div class="vol"><label for="vol">Volumen</label><input type="range" id="vol" min="0" max="100" step="5" value="80"><span id="volTxt">80 %</span></div>
     <label><input type="checkbox" id="redOn" checked> Avisar si el sumario se llena de alarmas rojas</label>
     <label><input type="checkbox" id="commOn" checked> Avisar (suave) si el sumario se llena de alarmas menores (rosadas, tomate, violetas o azules)</label>
-    <label>Suena cuando las menores son el <b id="commPctTxt">80 %</b> de las filas
+    <label>Suena cuando las menores ocupan el <b id="commPctTxt">80 %</b> del recuadro
       <input type="range" id="commPct" min="80" max="100" step="10" value="80" style="flex:1">
     </label>
     <label>Tipo de sonido para todas las alarmas
@@ -412,12 +412,9 @@ details li { margin-bottom: 6px; }
   else { sesEnd = 0; showLock(!savedHash); tickSession(); }
   $('ack').onclick = () => {
     clearInterval(siren); siren = null; $('alarm').hidden = true;
-    if (alarmKind === 'open') { ackLevel = lastMag; risingCount = 0; }
-    if (alarmKind === 'aor') emptySince = Date.now() + 50000; // espera 60 s antes de repetir
-    if (alarmKind === 'frozen') frozenSince = Date.now() + 50000;
-    // Igual que el magenta: no repite mientras siga igual; vuelve a sonar solo si se despeja 10 s y se llena otra vez
-    if (alarmKind === 'red') redSince = Infinity;
-    if (alarmKind === 'comm') commSince = Infinity;
+    // Silenciar reinicia la vigilancia como si se abriera la app de nuevo (para todas las alarmas)
+    ackLevel = null; risingCount = 0; emptySince = null; redSince = null; redClear = null;
+    commSince = null; commClear = null; lastSig = null; frozenSince = null;
     log('Silenciada'); alarmKind = null;
     setTimeout(reopenCam, 1000); // vuelve a abrir la cámara como al entrar a la app
   };
@@ -550,6 +547,9 @@ details li { margin-bottom: 6px; }
     return { mag: n ? mag / n : 0, dark: n ? dark / n : 0, sig, mask,
       red: textLines ? redLines / textLines : 0, comm: textLines ? (commLines + violetLines + blueLines) / textLines : 0, text: textLines / lines,
       commRows: count(Math.max(commLines, span[4])), violetRows: count(Math.max(violetLines, span[5])), blueRows: count(Math.max(blueLines, span[6])),
+      // Qué parte del alto del recuadro ocupan las filas rojas y las menores (0 a 1)
+      redBox: rows > 0 ? Math.max(redLines, span[2]) / rows : 0,
+      minorBox: rows > 0 ? Math.max(commLines, span[4]) / rows + Math.max(violetLines, span[5]) / rows + Math.max(blueLines, span[6]) / rows : 0,
       redRows: count(Math.max(redLines, span[2])), greenRows: count(Math.max(greenLines, span[3])), magRows: count(magLines),
       // Hasta dónde llegan las filas dentro del recuadro (0 = vacío, 1 = lleno hasta abajo)
       filled: rows > 0 ? (lastText + 1) / rows : 0,
@@ -597,11 +597,11 @@ details li { margin-bottom: 6px; }
     if (r.mag - ackLevel > delta) { risingCount++; if (risingCount >= 3) raise('open', 'APERTURA', 'Nueva alarma magenta en el sumario'); }
     else risingCount = 0;
 
-    // Sumario lleno de rojas: casi todas las filas con texto son rojas durante 5 s
-    if ($('redOn').checked && r.red > 0.7 && r.text > 0.15 && r.full) {
+    // Sumario en rojo: las filas rojas ocupan el 80 % o más del recuadro durante 5 s
+    if ($('redOn').checked && r.redBox >= 0.8) {
       redClear = null;
       if (!redSince) redSince = now;
-      else if (now - redSince > 5000) raise('red', 'SUMARIO EN ROJO', 'Casi todas las alarmas del sumario son rojas.');
+      else if (now - redSince > 5000) raise('red', 'SUMARIO EN ROJO', 'Las filas rojas ocupan casi todo el recuadro.');
     } else if (redSince) {
       // Si deja de estar en rojo por 10 s seguidos, se rearma: la próxima vez suena de nuevo
       if (!redClear) redClear = now;
@@ -609,11 +609,11 @@ details li { margin-bottom: 6px; }
     }
 
     // Sumario lleno de fallas de comunicación (filas rosadas o tomate): aviso suave, igual que el rojo
-    // El % de filas menores que pide la barrita de Ajustes (80, 90 o 100 %), con el recuadro lleno
-    if ($('commOn').checked && r.comm >= commLevel() && r.text > 0.15 && r.full) {
+    // Las menores ocupan el % del recuadro que pide la barrita de Ajustes (80, 90 o 100 %)
+    if ($('commOn').checked && r.minorBox >= commLevel()) {
       commClear = null;
       if (!commSince) commSince = now;
-      else if (now - commSince > 5000) raise('comm', 'SUMARIO LLENO DE ALARMAS MENORES', 'Casi todas las filas son rosadas, tomate, violetas o azules.');
+      else if (now - commSince > 5000) raise('comm', 'SUMARIO LLENO DE ALARMAS MENORES', 'Las filas rosadas, tomate, violetas o azules ocupan casi todo el recuadro.');
     } else if (commSince) {
       if (!commClear) commClear = now;
       else if (now - commClear > 10000) { commSince = null; commClear = null; }
@@ -738,7 +738,7 @@ details li { margin-bottom: 6px; }
       vctx.drawImage(img, 0, 0, view.width, view.height);
       const r = analyze(true, false);
       const sees = r.mag > SENS[$('sens').value];
-      log(`Foto: magenta ${(r.mag * 100).toFixed(2)} %, ${r.redRows} rojas, ${r.greenRows} verdes, ${r.magRows} magenta, ${r.commRows} rosadas/tomate, ${r.violetRows} violetas, ${r.blueRows} azules, lleno ${(r.filled * 100).toFixed(0)} % → ${sees ? 'detecta magenta' : 'sin magenta'}${r.dark < 0.03 && r.text < 0.03 ? ', sumario vacío' : ''}${r.red > 0.7 && r.text > 0.15 && r.full ? ', SUMARIO EN ROJO' : ''}${r.comm >= commLevel() && r.text > 0.15 && r.full ? ', SUMARIO LLENO DE ALARMAS MENORES' : ''}`);
+      log(`Foto: magenta ${(r.mag * 100).toFixed(2)} %, ${r.redRows} rojas, ${r.greenRows} verdes, ${r.magRows} magenta, ${r.commRows} rosadas/tomate, ${r.violetRows} violetas, ${r.blueRows} azules, lleno ${(r.filled * 100).toFixed(0)} %, rojas ${(r.redBox * 100).toFixed(0)} % y menores ${(r.minorBox * 100).toFixed(0)} % del recuadro → ${sees ? 'detecta magenta' : 'sin magenta'}${r.dark < 0.03 && r.text < 0.03 ? ', sumario vacío' : ''}${r.redBox >= 0.8 ? ', SUMARIO EN ROJO' : ''}${r.minorBox >= commLevel() ? ', SUMARIO LLENO DE ALARMAS MENORES' : ''}`);
       setState(sees ? 'Magenta detectado' : 'Sin magenta', sees ? 'bad' : 'ok');
       URL.revokeObjectURL(img.src);
     };
