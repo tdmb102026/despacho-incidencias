@@ -118,7 +118,21 @@ def aceptar_alertas(driver):
     return textos
 
 
+def cerrar_chrome_viejo():
+    """Cierra ventanas de Chrome que dejo abiertas una corrida anterior (solo las del perfil del programa)."""
+    try:
+        import subprocess
+        subprocess.call('wmic process where "name=\'chrome.exe\' and commandline like \'%%perfil-chrome%%\'" call terminate',
+                        shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        subprocess.call("taskkill /F /IM chromedriver.exe", shell=True,
+                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        time.sleep(2)
+    except Exception:
+        pass
+
+
 def abrir_chrome():
+    cerrar_chrome_viejo()
     op = webdriver.ChromeOptions()
     op.add_argument("--user-data-dir=" + PERFIL_CHROME)
     op.add_argument("--window-size=1600,1000")
@@ -345,11 +359,15 @@ def main():
     if not os.path.isdir(CARPETA_LOG):
         os.makedirs(CARPETA_LOG)
     _log_file = open(os.path.join(CARPETA_LOG, "bosnis_%s.txt" % fecha_txt), "a")
-    log("==== BOSNI v3 %s %s====" % (fecha_txt, "(PRUEBA) " if a.prueba else ""))
+    log("==== BOSNI v4 %s %s====" % (fecha_txt, "(PRUEBA) " if a.prueba else ""))
 
     carpeta = carpeta_dia(fecha)
     log("Carpeta: %s" % carpeta)
-    driver = abrir_chrome()
+    try:
+        driver = abrir_chrome()
+    except Exception as e:
+        log("ERROR al abrir Chrome: %s" % (getattr(e, "msg", None) or e))
+        return 2
     try:
         if not a.sin_generar:
             generar_reporte(driver, fecha, carpeta)
