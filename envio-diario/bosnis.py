@@ -146,10 +146,63 @@ def abrir_chrome():
     return d
 
 
+ARCHIVO_CLAVES = os.path.join(AQUI, "credenciales.ini")
+
+
+def leer_claves(seccion):
+    """Lee C:\\bosnis\\credenciales.ini (lo crea configurar.py). Nunca se sube a internet."""
+    try:
+        import configparser
+        c = configparser.ConfigParser()
+        c.read(ARCHIVO_CLAVES, encoding="utf-8")
+        return dict(c[seccion]) if c.has_section(seccion) else {}
+    except Exception:
+        return {}
+
+
+def visibles(driver, css):
+    return [e for e in driver.find_elements_by_css_selector(css) if e.is_displayed()]
+
+
+def login_automatico(driver, claves, con_ingeniero):
+    """Llena usuario, clave (y nombre del ingeniero de turno) en el primer formulario visible."""
+    if not claves.get("usuario") or not claves.get("clave"):
+        return False
+    claves_campo = visibles(driver, "input[type=password]")
+    if not claves_campo:
+        return False
+    textos = visibles(driver, "input[type=text], input[type=email], input:not([type])")
+    if not textos:
+        return False
+    textos[0].clear()
+    textos[0].send_keys(claves["usuario"])
+    claves_campo[0].clear()
+    claves_campo[0].send_keys(claves["clave"])
+    if con_ingeniero and len(textos) > 1 and claves.get("ingeniero"):
+        textos[1].clear()
+        textos[1].send_keys(claves["ingeniero"])
+    botones = [b for b in visibles(driver, "button, input[type=submit]")
+               if (b.text or b.get_attribute("value") or "").strip().lower() in ("login", "ingresar", "iniciar sesion", "iniciar sesión", "entrar")]
+    if botones:
+        botones[0].click()
+    else:
+        claves_campo[0].send_keys(Keys.ENTER)
+    time.sleep(4)
+    return True
+
+
 def esperar_login(driver):
-    """Si CENACE pide usuario/clave, espera a que la persona inicie sesion (solo la 1.a vez)."""
+    """Si CENACE pide iniciar sesion: entra solo con credenciales.ini, o espera a que la persona entre."""
     if "CargarEntregas" in driver.current_url and driver.find_elements_by_id("IdSubestacion"):
         return
+    if login_automatico(driver, leer_claves("cenace"), True):
+        log("CENACE: sesion iniciada automaticamente")
+        if "CargarEntregas" not in driver.current_url:
+            driver.get(URL_CENACE)
+        time.sleep(2)
+        if driver.find_elements_by_id("IdSubestacion"):
+            return
+        log("CENACE: el login automatico no funciono (revisa credenciales.ini)")
     log("CENACE pide iniciar sesion. Inicia sesion en la ventana de Chrome (tienes 5 minutos)...")
     fin = time.time() + 300
     while time.time() < fin:
@@ -193,7 +246,12 @@ def generar_reporte(driver, fecha, carpeta):
     inicio = time.time()
     driver.get(URL_DEMANDA)
     fin = time.time() + 300
+    intento_login = False
     while not driver.find_elements_by_xpath("//*[normalize-space(text())='Reportes']"):
+        if not intento_login and visibles(driver, "input[type=password]"):
+            intento_login = True
+            if login_automatico(driver, leer_claves("demanda"), False):
+                log("DemandaMaxima: sesion iniciada automaticamente")
         if time.time() > fin:
             raise RuntimeError("DemandaMaxima no cargo (o pide iniciar sesion).")
         if int(time.time()) % 30 == 0:
@@ -318,7 +376,7 @@ def cargar_un_archivo(driver, fecha_txt, id_sub, ruta, guardar):
     return filas
 
 
-def revisar_y_capturar(driver, fecha):
+def revisar_y_capturar(driver, fecha, prueba=False):
     driver.get(URL_CENACE)
     esperar_login(driver)
     # pestania "Datos Ingresados"
@@ -334,7 +392,13 @@ def revisar_y_capturar(driver, fecha):
         if e.is_displayed():
             texto = e.text
     log("Datos Ingresados: %s" % (texto or "(no se encontro el total)"))
-    ruta = ruta_captura(fecha)
+    if prueba:
+        carpeta = os.path.join(AQUI, "capturas-prueba")
+        if not os.path.isdir(carpeta):
+            os.makedirs(carpeta)
+        ruta = os.path.join(carpeta, "PRUEBA BOSNI %s.png" % fecha.strftime("%d-%m-%Y"))
+    else:
+        ruta = ruta_captura(fecha)
     driver.save_screenshot(ruta)
     log("Captura guardada: %s" % ruta)
     esperado = REGISTROS_POR_ARCHIVO * len(CARGAS)
@@ -359,7 +423,7 @@ def main():
     if not os.path.isdir(CARPETA_LOG):
         os.makedirs(CARPETA_LOG)
     _log_file = open(os.path.join(CARPETA_LOG, "bosnis_%s.txt" % fecha_txt), "a")
-    log("==== BOSNI v4 %s %s====" % (fecha_txt, "(PRUEBA) " if a.prueba else ""))
+    log("==== BOSNI v5 %s %s====" % (fecha_txt, "(PRUEBA) " if a.prueba else ""))
 
     carpeta = carpeta_dia(fecha)
     log("Carpeta: %s" % carpeta)
@@ -397,7 +461,13 @@ def main():
                 errores += 1
                 log("   ERROR: %s" % e)
                 aceptar_alertas(driver)
-        if not a.prueba:
+        if a.prueba:
+            revisar_y_capturar(driver, fecha, prueba=True)
+            try:
+                os.startfile(os.path.join(AQUI, "capturas-prueba"))
+            except Exception:
+                pass
+        else:
             ok = revisar_y_capturar(driver, fecha)
             if not ok:
                 log("OJO: el total no es %d registros, revisa la captura." % (REGISTROS_POR_ARCHIVO * len(CARGAS)))
