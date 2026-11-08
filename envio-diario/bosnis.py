@@ -378,6 +378,11 @@ def main():
         log("ERROR inesperado:\n" + traceback.format_exc())
         errores += 1
     finally:
+        if errores == 0 and a.prueba:
+            try:
+                input("\nPrueba terminada. Revisa Chrome y presiona Enter para cerrarlo...")
+            except Exception:
+                pass
         if errores == 0:
             driver.quit()
         else:

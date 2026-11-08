@@ -11,7 +11,7 @@ DRIVER = "https://chromedriver.storage.googleapis.com/109.0.5414.74/chromedriver
 if not os.path.isdir(DESTINO):
     os.makedirs(DESTINO)
 
-for nombre in ("bosnis.py", "bosnis.bat", "bosnis-prueba.bat"):
+for nombre in ("bosnis.py", "bosnis.bat", "bosnis-prueba.bat", "bosnis-prueba-completa.bat"):
     print("Bajando", nombre)
     datos = u.urlopen(BASE + nombre, timeout=60).read()
     open(os.path.join(DESTINO, nombre), "wb").write(datos)
