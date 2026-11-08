@@ -264,10 +264,10 @@ function iaQueda() {
 }
 setInterval(iaQueda, 20e3);
 document.addEventListener("visibilitychange", iaQueda);
-$("go-sin").onclick = () => { setModo(false); history.pushState({ v: "home" }, ""); show("home"); };
+$("go-sin").onclick = () => { setModo(false); pedirLista(true); };
 $("go-con").onclick = () => {
   if (iaClave() && iaUrl()) {
-    setModo(true); history.pushState({ v: "home" }, ""); show("home");
+    setModo(true); pedirLista(true);
     iaPost({ clave: iaClave(), tipo: "bajar" }).then(j => iaBajar(j.aprendido)).catch(() => {});
     return;
   }
@@ -289,7 +289,7 @@ $("ia-entrar").onclick = async () => {
   try {
     const j = await iaPost({ clave, tipo: "probar" });
     iaPut("ia-clave", clave); iaPut("ia-nombre", j.operador || ""); iaPut("ia-hasta", String(finTurno())); $("ia-pass").value = ""; $("ia-note").hidden = true;
-    setModo(true); history.replaceState({ v: "home" }, ""); show("home"); iaBajar(j.aprendido);
+    setModo(true); pedirLista(false); iaBajar(j.aprendido);
   } catch (e) {
     $("ia-note").textContent = e.ia ? (e.message.startsWith("Tu contraseña") ? "Esa contraseña no vale. Revísala o pídela a fer." : e.message) : "No se pudo revisar la contraseña.";
   } finally { $("ia-entrar").disabled = false; }
