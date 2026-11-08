@@ -15,11 +15,15 @@ if not os.path.isdir(DESTINO):
 import json
 RAMA = "claude/project-thread-vee0yh"
 try:
+    BASE = BASE.replace(RAMA, V)   # V viene del comando de instalar (commit exacto)
+    print("Version", V[:7])
+except NameError:
+  try:
     info = json.loads(u.urlopen("https://api.github.com/repos/tdmb102026/despacho-incidencias/commits/" + RAMA,
                                 timeout=60).read().decode("utf-8"))
     BASE = BASE.replace(RAMA, info["sha"])
     print("Version del", info["commit"]["committer"]["date"], info["sha"][:7])
-except Exception as e:
+  except Exception as e:
     print("(no se pudo leer la ultima version, uso la rama)", e)
 
 for nombre in ("bosnis.py", "bosnis.bat", "bosnis-prueba.bat", "bosnis-prueba-completa.bat"):
