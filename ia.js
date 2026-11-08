@@ -10,7 +10,14 @@ let modoIA = false;
 const iaGet = k => { try { return localStorage.getItem(k) || ""; } catch { return ""; } };
 const iaPut = (k, v) => { try { v ? localStorage.setItem(k, v) : localStorage.removeItem(k); } catch {} };
 const iaUrl = () => IA_URL || iaGet("ia-servidor");
-const TURNO = 8 * 3600e3;
+// Turnos: 06:00–14:00, 14:00–22:00, 22:00–06:00. La sesión se cierra al terminar el turno en curso;
+// si se entra en la última media hora antes del cambio (llegando temprano), dura hasta el fin del turno siguiente.
+function finTurno(ahora = new Date()) {
+  const d = new Date(ahora); d.setMinutes(0, 0, 0);
+  do d.setHours(d.getHours() + 1); while (![6, 14, 22].includes(d.getHours()));
+  if (d - ahora < 30 * 60e3) d.setHours(d.getHours() + 8);
+  return d.getTime();
+}
 // Contraseña del turno en curso ("" si ya pasó el turno o se tocó Salir)
 function iaClave() {
   if (Date.now() > +iaGet("ia-hasta")) { iaPut("ia-clave", ""); iaPut("ia-nombre", ""); }
@@ -283,7 +290,7 @@ $("ia-entrar").onclick = async () => {
   $("ia-entrar").disabled = true; $("ia-note").textContent = "Revisando la contraseña…"; $("ia-note").hidden = false;
   try {
     const j = await iaPost({ clave, tipo: "probar" });
-    iaPut("ia-clave", clave); iaPut("ia-nombre", j.operador || ""); iaPut("ia-hasta", String(Date.now() + TURNO)); $("ia-pass").value = ""; $("ia-note").hidden = true;
+    iaPut("ia-clave", clave); iaPut("ia-nombre", j.operador || ""); iaPut("ia-hasta", String(finTurno())); $("ia-pass").value = ""; $("ia-note").hidden = true;
     setModo(true); history.replaceState({ v: "home" }, ""); show("home"); iaBajar(j.aprendido);
   } catch (e) {
     $("ia-note").textContent = e.ia ? (e.message.startsWith("Tu contraseña") ? "Esa contraseña no vale. Revísala o pídela a fer." : e.message) : "No se pudo revisar la contraseña.";
