@@ -201,6 +201,7 @@ details pre{white-space:pre-wrap;word-break:break-word;font-family:var(--mono);f
         <input type="file" id="photo" accept="image/*" capture="environment" hidden>
         <label class="btn shot alt"><input type="file" id="gallery" accept="image/*">Elegir de la galería</label>
         <div style="grid-column:1/-1;display:flex;align-items:center;gap:10px"><span class="tip">Zoom de la cámara:</span><div class="chips" id="c-zoom"></div></div>
+        <div style="grid-column:1/-1;display:flex;align-items:center;gap:10px"><span class="tip">Primario:</span><div class="chips" id="c-lista"></div></div>
         <p class="tip" style="grid-column:1/-1">Pon el celular horizontal. Con zoom no te acerques demasiado: aléjate hasta que el panel de la incidencia llene el recuadro y quede nítido.</p>
       </div>
       <div class="preview" id="prev" hidden><img id="thumb" alt="Foto de la pantalla"><div style="flex:1;display:grid;gap:6px"><div class="bar"><i id="barfill"></i></div><span class="status" id="status">Preparando el lector…</span></div><button class="pill" id="cancel" type="button">Cancelar</button></div>
@@ -479,18 +480,26 @@ function selGrupo() {
 }
 function selSE(corto) {
   const largo = (GRUPOS.find(g => g[0] === corto) || [])[1];
-  const ses = [...new Set(ALIM.filter(a => a[2] === largo).map(a => a[0]))];
-  if (ses.length === 1) return selPri(ses[0], corto, true);
-  $("selpri-t").textContent = "Subestación · " + corto;
-  gridFill(ses, se => selPri(se, corto), atras("Grupos", selGrupo));
+  const ses = [...new Set(ALIM.filter(a => !corto || a[2] === largo).map(a => a[0]))];
+  if (corto && ses.length === 1) return selPri(ses[0], corto, true);
+  $("selpri-t").textContent = corto ? "Subestación · " + corto : "Subestación";
+  gridFill(ses, se => selPri(se, corto), corto && atras("Grupos", selGrupo));
 }
 function selPri(se, corto, sola) {
   $("selpri-t").textContent = "Primario · S/E " + se;
-  const back = sola ? atras("Grupos", selGrupo) : atras(corto, () => selSE(corto));
+  const back = sola ? atras("Grupos", selGrupo) : atras(corto || "Subestaciones", () => selSE(corto));
   gridFill(ALIM.filter(a => a[0] === se).map(a => a[1]), name => { history.back(); pickPri(name); }, back);
 }
+// Cómo empieza la lista: por grupo de despacho o directo por subestación (se recuerda en el teléfono)
+const LISTAS = ["Por grupo", "Por subestación"];
+const listaPri = () => { try { return localStorage.getItem("lista-pri") || LISTAS[0]; } catch { return LISTAS[0]; } };
+function setListaPri(v) {
+  try { localStorage.setItem("lista-pri", v); } catch {}
+  chips($("c-lista"), LISTAS, v, setListaPri);
+}
+setListaPri(listaPri());
 function abrirSelPri() {
-  history.pushState({ v: "res" }, ""); $("selpri").hidden = false; selGrupo();
+  history.pushState({ v: "res" }, ""); $("selpri").hidden = false; listaPri() === LISTAS[1] ? selSE() : selGrupo();
 }
 $("pri-se").onclick = abrirSelPri;
 $("selpri-x").onclick = () => history.back();
