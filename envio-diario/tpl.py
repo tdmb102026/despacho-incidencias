@@ -378,6 +378,7 @@ def capturar(driver, fecha, prueba):
         mes = bosnis.MESES[fecha.month - 1]
         carpeta = os.path.join(RAIZ_CAPTURAS, str(fecha.year), "%02d_%s" % (fecha.month, mes))
         nombre = "TPL %s.png" % fecha.strftime("%d-%m-%Y")
+        carpeta = bosnis.carpeta_existente(carpeta)
     if not os.path.isdir(carpeta):
         os.makedirs(carpeta)
     ruta = os.path.join(carpeta, nombre)
@@ -401,7 +402,7 @@ def main():
     if not os.path.isdir(bosnis.CARPETA_LOG):
         os.makedirs(bosnis.CARPETA_LOG)
     bosnis._log_file = open(os.path.join(bosnis.CARPETA_LOG, "tpl_%s.txt" % fecha.strftime("%Y-%m-%d")), "a")
-    log("==== TPL v1 %s %s %s====" % (a.accion, fecha, "(PRUEBA) " if a.prueba else ""))
+    log("==== TPL v2 %s %s %s====" % (a.accion, fecha, "(PRUEBA) " if a.prueba else ""))
 
     driver = None
     errores = 0

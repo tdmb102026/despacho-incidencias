@@ -85,9 +85,18 @@ def ruta_captura(fecha):
     carpeta = os.path.join(RAIZ_BOSNI.replace("{Y}", str(fecha.year)),
                            "00_CAPTURAS %d" % fecha.year,
                            "%02d_%s" % (fecha.month, mes))
-    if not os.path.isdir(carpeta):
-        os.makedirs(carpeta)
-    return os.path.join(carpeta, "BOSNI %s.png" % fecha.strftime("%d-%m-%Y"))
+    return os.path.join(carpeta_existente(carpeta), "BOSNI %s.png" % fecha.strftime("%d-%m-%Y"))
+
+
+def carpeta_existente(carpeta):
+    """NO crea carpetas en las rutas de la empresa: si la del mes no existe, guarda en C:\\bosnis\\capturas-sin-carpeta."""
+    if os.path.isdir(carpeta):
+        return carpeta
+    respaldo = os.path.join(AQUI, "capturas-sin-carpeta")
+    if not os.path.isdir(respaldo):
+        os.makedirs(respaldo)
+    log("OJO: no existe la carpeta %s. La captura queda en %s; muevela cuando crees la carpeta." % (carpeta, respaldo))
+    return respaldo
 
 
 def buscar_excel(carpeta, nombre):
@@ -431,7 +440,7 @@ def main():
     if not os.path.isdir(CARPETA_LOG):
         os.makedirs(CARPETA_LOG)
     _log_file = open(os.path.join(CARPETA_LOG, "bosnis_%s.txt" % fecha_txt), "a")
-    log("==== BOSNI v6 %s %s====" % (fecha_txt, "(PRUEBA) " if a.prueba else ""))
+    log("==== BOSNI v7 %s %s====" % (fecha_txt, "(PRUEBA) " if a.prueba else ""))
 
     carpeta = carpeta_dia(fecha)
     log("Carpeta: %s" % carpeta)
