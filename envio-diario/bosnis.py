@@ -137,8 +137,6 @@ def cerrar_chrome_viejo():
         import subprocess
         subprocess.call('wmic process where "name=\'chrome.exe\' and commandline like \'%%perfil-chrome%%\'" call terminate',
                         shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        subprocess.call("taskkill /F /IM chromedriver.exe", shell=True,
-                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         time.sleep(2)
     except Exception:
         pass
