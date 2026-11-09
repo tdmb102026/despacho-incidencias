@@ -1,4 +1,6 @@
 @echo off
 cd /d C:\bosnis
-C:\Python34\python.exe configurar.py
+set PY=python
+if exist C:\Python34\python.exe set PY=C:\Python34\python.exe
+%PY% configurar.py
 pause
