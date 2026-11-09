@@ -120,6 +120,7 @@ details li { margin-bottom: 6px; }
       <span id="hudSes"></span>
       <button id="hudFocus">Reenfocar</button>
       <button id="hudTest">Probar sonido</button>
+      <button id="hudSnap">Guardar imagen</button>
       <button id="hudStop">Detener</button>
     </div>
   </div>
@@ -180,7 +181,7 @@ details li { margin-bottom: 6px; }
       <li>Toca <b>Iniciar vigilancia</b> y permite la cámara.</li>
       <li>Arrastra el dedo sobre la imagen para marcar solo la lista del sumario (sin la barra de botones).</li>
       <li>Deja la pantalla del celular encendida y conectado al cargador.</li>
-      <li>Cuando aparezca una alarma magenta nueva, suena y la pantalla parpadea. Toca <b>Silenciar</b>; vuelve a sonar solo si aparece otra magenta.</li>
+      <li>Cuando aparezca una alarma magenta nueva, suena y la pantalla parpadea. Si al iniciar ya hay una magenta en pantalla, también suena. Toca <b>Silenciar</b>; vuelve a sonar solo si aparece otra magenta.</li>
       <li>Si el sumario se queda en blanco más de 10 segundos, suena un aviso naranja de posible pérdida de AOR.</li>
       <li>Si el recuadro marcado se llena de filas hasta abajo y casi todas son rojas durante 5 segundos, suena un aviso rojo. Al silenciarlo, repite a los 5 minutos si sigue igual.</li>
       <li>Si la cámara se congela, también avisa.</li>
@@ -232,7 +233,7 @@ details li { margin-bottom: 6px; }
 
   const SENS = { high: 0.0006, mid: 0.0015, low: 0.004 }; // fracción de píxeles magenta nuevos en la zona
   let running = false, stream = null, timer = null, wakeLock = null;
-  let ackLevel = null, risingCount = 0, emptySince = null, redSince = null, lastSig = null, frozenSince = null;
+  let ackLevel = null, risingCount = 0, ackRows = 0, settleUntil = 0, lowSince = null, emptySince = null, redSince = null, lastSig = null, frozenSince = null;
   let redClear = null, commSince = null, commClear = null;
   let alarmKind = null, audio = null, siren = null;
 
@@ -413,7 +414,7 @@ details li { margin-bottom: 6px; }
   $('ack').onclick = () => {
     clearInterval(siren); siren = null; $('alarm').hidden = true;
     // Silenciar reinicia la vigilancia como si se abriera la app de nuevo (para todas las alarmas)
-    ackLevel = null; risingCount = 0; emptySince = null; redSince = null; redClear = null;
+    ackLevel = 0; ackRows = 0; settleUntil = Date.now() + 1000 + 3000; lowSince = null; risingCount = 0; emptySince = null; redSince = null; redClear = null;
     commSince = null; commClear = null; lastSig = null; frozenSince = null;
     log('Silenciada'); alarmKind = null;
     setTimeout(reopenCam, 1000); // vuelve a abrir la cámara como al entrar a la app
@@ -468,10 +469,11 @@ details li { margin-bottom: 6px; }
         if (mx === r) h = ((g - b) / c + 6) % 6; else if (mx === g) h = (b - r) / c + 2; else h = (r - g) / c + 4;
         h *= 60;
         // Rosado (fallas de comunicación): rojo claro y apagado, que no llega a contar como color fuerte
-        if (c / mx < 0.45) { if (mx >= 120 && (h < 25 || h > 335)) lp++; continue; }
+        // Magenta claro o lavado por la cámara (poco saturado) también cuenta como magenta
+        if (c / mx < 0.45) { if (mx >= 120 && (h < 25 || h > 335)) lp++; else if (c / mx >= 0.25 && h > 280 && h <= 320) { lt++; lmag++; } continue; }
         lt++;
         if (h >= 15 && h < 45) lo++; // tomate
-        if (h > 285 && h < 335) lmag++;
+        if (h > 280 && h < 335) lmag++;
         else if (h < 15 || h > 345) lr++;
         else if (h > 225 && h <= 285) lv++;
         else if (h >= 185 && h <= 225) lb++; // azul
@@ -514,11 +516,12 @@ details li { margin-bottom: 6px; }
         for (let x = x0; x < x1; x++) {
           const i = (y * wid + x) * 4, r = d[i], g = d[i + 1], b = d[i + 2];
           const mx = Math.max(r, g, b), c = mx - Math.min(r, g, b);
-          if (mx < 100 || c / mx < 0.45) continue;
+          if (mx < 100 || c / mx < 0.25) continue;
+          const sat = c / mx;
           let h;
           if (mx === r) h = ((g - b) / c + 6) % 6; else if (mx === g) h = (b - r) / c + 2; else h = (r - g) / c + 4;
           h *= 60;
-          if (h > 285 && h < 335) { mask.data[i] = 255; mask.data[i + 1] = 255; mask.data[i + 2] = 255; mask.data[i + 3] = 255; }
+          if (h > 280 && (sat >= 0.45 ? h < 335 : h <= 320)) { mask.data[i] = 255; mask.data[i + 1] = 255; mask.data[i + 2] = 255; mask.data[i + 3] = 255; }
         }
       }
     }
@@ -590,12 +593,24 @@ details li { margin-bottom: 6px; }
     } else if (frozenSince && frozenSince <= now) frozenSince = null;
     lastSig = r.sig;
 
-    // Aperturas: aumento de magenta sobre el nivel ya silenciado
-    if (ackLevel === null) { ackLevel = r.mag; log(`Nivel inicial de magenta: ${(r.mag * 100).toFixed(2)} %`); }
-    if (r.mag < ackLevel) ackLevel = r.mag; // si se reconocen en el SCADA, baja el nivel
-    const delta = SENS[$('sens').value];
-    if (r.mag - ackLevel > delta) { risingCount++; if (risingCount >= 3) raise('open', 'APERTURA', 'Nueva alarma magenta en el sumario'); }
-    else risingCount = 0;
+    // Aperturas. Suena si hay más filas magenta que las ya silenciadas (al iniciar: cero, así
+    // una magenta que ya está en pantalla también suena) o si sube mucho el magenta en píxeles.
+    // Después de silenciar o reabrir la cámara, durante 3 s se toma como silenciado lo que se ve.
+    if (now < settleUntil) {
+      ackRows = Math.max(ackRows, r.magRows); ackLevel = Math.max(ackLevel || 0, r.mag); risingCount = 0;
+    } else {
+      if (ackLevel === null) { ackLevel = 0; ackRows = 0; log('Vigilando magenta desde cero'); }
+      // Baja el nivel silenciado solo si se ve menos durante 5 s seguidos (se reconocieron en el SCADA),
+      // así un cuadro borroso no hace que la misma magenta vuelva a sonar.
+      if (r.magRows < ackRows || r.mag < ackLevel) {
+        if (!lowSince) lowSince = now;
+        else if (now - lowSince > 5000) { ackRows = Math.min(ackRows, r.magRows); ackLevel = Math.min(ackLevel, r.mag); lowSince = null; }
+      } else lowSince = null;
+      const nueva = r.magRows > ackRows || r.mag - ackLevel > SENS[$('sens').value];
+      // Dos cuadros con magenta nueva bastan; un cuadro borroso en medio no reinicia la cuenta
+      risingCount = nueva ? risingCount + 1 : Math.max(0, risingCount - 1);
+      if (risingCount >= 2) raise('open', 'APERTURA', 'Nueva alarma magenta en el sumario');
+    }
 
     // Sumario en rojo: las filas rojas ocupan el 80 % o más del recuadro durante 5 s
     if ($('redOn').checked && r.redBox >= 0.8) {
@@ -669,7 +684,7 @@ details li { margin-bottom: 6px; }
     reopening = true;
     if (stream) stream.getTracks().forEach(t => t.stop());
     await new Promise(r => setTimeout(r, 500));
-    if (await openCam()) { lastSig = null; frozenSince = null; ackLevel = null; risingCount = 0; log('Cámara reabierta'); }
+    if (await openCam()) { lastSig = null; frozenSince = null; settleUntil = Math.max(settleUntil, Date.now() + 3000); risingCount = 0; log('Cámara reabierta'); }
     else raise('frozen', 'CÁMARA DETENIDA', 'No se pudo reabrir la cámara. Toca Detener e Iniciar vigilancia.');
     reopening = false;
   }
@@ -682,7 +697,7 @@ details li { margin-bottom: 6px; }
       return;
     }
     if (!(await openCam())) return;
-    running = true; ackLevel = null; risingCount = 0; emptySince = null; redSince = null; lastSig = null; frozenSince = null;
+    running = true; ackLevel = null; ackRows = 0; settleUntil = 0; lowSince = null; risingCount = 0; emptySince = null; redSince = null; lastSig = null; frozenSince = null;
     timer = setInterval(tick, 400);
     await keepAwake();
     $('start').disabled = true; $('stop').disabled = false;
@@ -722,6 +737,16 @@ details li { margin-bottom: 6px; }
 
   $('start').onclick = start; $('stop').onclick = stop; $('hudStop').onclick = stop;
   $('hudTest').onclick = () => $('test').onclick();
+  // Guarda la imagen tal como la ve la cámara (sin dibujos encima), para revisar colores que no reconoce
+  $('hudSnap').onclick = () => {
+    const r = classify(vctx.getImageData(0, 0, view.width, view.height), view.width, view.height, false);
+    log(`Imagen guardada: ${r.magRows} magenta, ${r.redRows} rojas, ${r.commRows} rosadas/tomate, ${r.violetRows} violetas, zona ${JSON.stringify(roi)}`);
+    view.toBlob(b => {
+      const a = document.createElement('a'); a.href = URL.createObjectURL(b);
+      a.download = 'vigia-' + new Date().toISOString().slice(0, 19).replace(/[T:]/g, '-') + '.png';
+      document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+    }, 'image/png');
+  };
   // Reenfocar: apaga y prende la cámara, como cuando se tapa y destapa con la mano.
   $('hudFocus').onclick = () => { log('Reenfocando'); reopenCam(); };
   document.addEventListener('visibilitychange', async () => {
@@ -780,7 +805,7 @@ details li { margin-bottom: 6px; }
     if (roi.w < 0.03 || roi.h < 0.03) { roi = { x: 0.05, y: 0.15, w: 0.9, h: 0.7 }; }
     try { localStorage.setItem('vigia-roi', JSON.stringify(roi)); } catch (e) {}
     rowPitch = null;
-    ackLevel = null; // recalcula el nivel base con la nueva zona
+    ackLevel = 0; ackRows = 0; settleUntil = Date.now() + 2000; // con la nueva zona, lo que ya se ve cuenta como visto
     $('hint').hidden = true; drawOverlay(null); log('Zona del sumario actualizada');
   }
   ov.addEventListener('pointerup', release);
