@@ -35,10 +35,12 @@ JAR = r"C:\TPL\TPL.jar"
 
 TITULO_LOGIN = "TPL Ventana de inicio"
 TITULO_PRINCIPAL = "Terminal Portatil de Lectura"
+TITULO_LLAMADA = "Llamada a lista de Puntos"   # dialogo "Se recuperaran datos desde el dia ..." -> Aceptar
+ACEPTAR_LLAMADA = (196, 120)                    # boton Aceptar dentro de ese dialogo
 
 # Posicion de los botones dentro de la ventana del TPL (pixeles desde la esquina de la ventana)
-ICONO_DESCARGA = (87, 56)          # icono verde del medio, desde la esquina IZQUIERDA superior
-CHECK_SELECCIONAR = (-116, 56)     # casilla "Seleccionar todo", desde la esquina DERECHA superior
+ICONO_DESCARGA = (90, 61)          # icono verde del medio, desde la esquina IZQUIERDA superior
+CHECK_SELECCIONAR = (-119, 61)     # casilla "Seleccionar todo", desde la esquina DERECHA superior
 
 MEDIDORES = [
     "DAMB01_WB_P", "DAMB01_WB_R", "DAMB02_WB_P", "DAMB02_WB_R", "DAMB03_WB_P", "DAMB03_WB_R",
@@ -236,6 +238,22 @@ def descargar_con_tpl(fecha):
     log("   descarga: clic en el icono verde")
     clic(izq + ICONO_DESCARGA[0], arriba + ICONO_DESCARGA[1])
 
+    d = esperar_ventana(TITULO_LLAMADA, 30)
+    if d:
+        al_frente(d)
+        log("   dialogo 'Se recuperaran datos desde el dia...': Aceptar")
+        tecla(VK_RETURN)
+        time.sleep(2)
+        d = buscar_ventana(TITULO_LLAMADA)
+        if d:
+            l, t, _, _ = rect(d)
+            clic(l + ACEPTAR_LLAMADA[0], t + ACEPTAR_LLAMADA[1])
+            time.sleep(2)
+        if buscar_ventana(TITULO_LLAMADA):
+            raise RuntimeError("No pude apretar Aceptar en el dialogo de fechas del TPL.")
+    else:
+        log("   (no aparecio el dialogo de fechas)")
+
     fin = time.time() + 10 * 60
     ultimo = None
     while time.time() < fin:
@@ -402,7 +420,7 @@ def main():
     if not os.path.isdir(bosnis.CARPETA_LOG):
         os.makedirs(bosnis.CARPETA_LOG)
     bosnis._log_file = open(os.path.join(bosnis.CARPETA_LOG, "tpl_%s.txt" % fecha.strftime("%Y-%m-%d")), "a")
-    log("==== TPL v3 %s %s %s====" % (a.accion, fecha, "(PRUEBA) " if a.prueba else ""))
+    log("==== TPL v4 %s %s %s====" % (a.accion, fecha, "(PRUEBA) " if a.prueba else ""))
 
     driver = None
     errores = 0
