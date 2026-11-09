@@ -435,7 +435,7 @@ def main():
     if not os.path.isdir(bosnis.CARPETA_LOG):
         os.makedirs(bosnis.CARPETA_LOG)
     bosnis._log_file = open(os.path.join(bosnis.CARPETA_LOG, "tpl_%s.txt" % fecha.strftime("%Y-%m-%d")), "a")
-    log("==== TPL v5 %s %s %s====" % (a.accion, fecha, "(PRUEBA) " if a.prueba else ""))
+    log("==== TPL v6 %s %s %s====" % (a.accion, fecha, "(PRUEBA) " if a.prueba else ""))
 
     driver = None
     errores = 0
@@ -446,12 +446,12 @@ def main():
             faltan = zips_listos(fecha)
             if faltan:
                 raise RuntimeError("Faltan zip en C:\\TPL\\datos: %s" % ", ".join(faltan))
-            driver = abrir_chrome()
+            driver = abrir_chrome(ignorar_certificados=True)
             enviar_simec(driver, fecha, a.prueba)
 
         if a.accion in ("capturar", "todo"):
             if driver is None:
-                driver = abrir_chrome()
+                driver = abrir_chrome(ignorar_certificados=True)
                 entrar_simec(driver)
             fin = time.time() + a.espera * 60
             while True:

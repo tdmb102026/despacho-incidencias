@@ -137,13 +137,16 @@ def cerrar_chrome_viejo():
         pass
 
 
-def abrir_chrome():
+def abrir_chrome(ignorar_certificados=False):
     cerrar_chrome_viejo()
     op = webdriver.ChromeOptions()
     op.add_argument("--user-data-dir=" + PERFIL_CHROME)
     op.add_argument("--window-size=1600,1000")
     op.add_argument("--start-maximized")
     op.add_argument("--disable-gpu")
+    if ignorar_certificados:
+        # Solo para SIMEC (smec.cenace.gob.ec), cuyo certificado Chrome no reconoce. Decidido por fer el 08/11/2026.
+        op.add_argument("--ignore-certificate-errors")
     op.add_argument("--log-level=3")
     op.add_experimental_option("excludeSwitches", ["enable-logging"])
     op.add_experimental_option("detach", True)   # Chrome no se cierra si el programa termina con error
@@ -437,7 +440,7 @@ def main():
     if not os.path.isdir(CARPETA_LOG):
         os.makedirs(CARPETA_LOG)
     _log_file = open(os.path.join(CARPETA_LOG, "bosnis_%s.txt" % fecha_txt), "a")
-    log("==== BOSNI v8 %s %s====" % (fecha_txt, "(PRUEBA) " if a.prueba else ""))
+    log("==== BOSNI v9 %s %s====" % (fecha_txt, "(PRUEBA) " if a.prueba else ""))
 
     carpeta = carpeta_dia(fecha)
     log("Carpeta: %s" % carpeta)
