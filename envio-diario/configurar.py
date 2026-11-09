@@ -21,9 +21,20 @@ CAMPOS = [
     ("correo", "usuario", "Correo Outlook (cecon@eeasa.com.ec) - usuario", False),
     ("correo", "clave", "Correo Outlook - clave", True),
 ]
-print("Escribe cada dato y Enter. Ojo: las claves se ven en pantalla.")
+GRUPOS = [("cenace", "CENACE Bitacora Net"), ("demanda", "DemandaMaxima"), ("tpl", "Programa TPL"),
+          ("simec", "SIMEC"), ("correo", "Correo Outlook")]
+print("Que quieres configurar?")
+for i, (sec, nombre) in enumerate(GRUPOS, 1):
+    print("  %d) %s%s" % (i, nombre, "   (ya guardado)" if c.has_section(sec) and c.get(sec, "clave", fallback="") else ""))
+print("  0) Todo")
+op = input("Numero: ").strip()
+elegidas = [g[0] for g in GRUPOS] if op in ("", "0") else \
+    [GRUPOS[int(x) - 1][0] for x in op.replace(",", " ").split() if x.isdigit() and 0 < int(x) <= len(GRUPOS)]
+print("\nEscribe cada dato y Enter. Ojo: las claves se ven en pantalla.")
 print("Si ya estaba guardado, solo presiona Enter para dejarlo igual.\n")
 for sec, campo, texto, secreto in CAMPOS:
+    if sec not in elegidas:
+        continue
     if not c.has_section(sec):
         c.add_section(sec)
     actual = c.get(sec, campo, fallback="")
