@@ -24,7 +24,7 @@ import bosnis
 from bosnis import log, MESES, carpeta_existente, leer_claves, visibles, abrir_chrome
 from selenium.webdriver.common.keys import Keys
 
-VERSION = "demanda v1"
+VERSION = "demanda v2"
 AQUI = bosnis.AQUI
 RAIZ_PARTES = r"D:\PARTES OPERACION CECON\MisDocumentos\excel\PARTES {Y}"
 CARPETA_CURVAS = "DEMANDA EEASA CCND {Y}"            # dentro de PARTES {Y}, luego carpeta del MES
@@ -200,37 +200,65 @@ def escribir_destinos(driver, etiquetas, correos):
         time.sleep(1.5)
 
 
+def cancelar_onedrive(driver):
+    """Si sale 'Cargar en OneDrive' (subir y compartir vinculo) se cancela: queremos adjunto normal."""
+    for d in visibles(driver, "[role=dialog], [role=alertdialog]"):
+        t = (d.text or "").lower()
+        if "cargar en" in t or "upload to" in t or "onedrive" in t:
+            for b in d.find_elements_by_css_selector("button"):
+                if (b.text or "").strip().lower() in ("cancelar", "cancel"):
+                    b.click()
+                    time.sleep(2)
+                    return True
+    return False
+
+
+def adjunto_visible(driver, nombre):
+    base = os.path.splitext(nombre)[0][:25]
+    c = cuerpo(driver)
+    zona = driver.find_elements_by_css_selector("[aria-label*='djunto'], [aria-label*='ttachment']")
+    textos = " ".join((z.text or "") + " " + (z.get_attribute("aria-label") or "") for z in zona)
+    return base in textos or base in (driver.find_element_by_tag_name("body").text or "").replace((c.text if c else ""), "")
+
+
+def esperar_adjunto(driver, nombre, segundos):
+    fin = time.time() + segundos
+    while time.time() < fin:
+        time.sleep(2)
+        if cancelar_onedrive(driver):
+            return False
+        if adjunto_visible(driver, nombre):
+            return True
+    return False
+
+
 def adjuntar(driver, ruta):
     nombre = os.path.basename(ruta)
     inputs = driver.find_elements_by_css_selector("input[type=file]")
-    ok = False
-    for i in reversed(inputs):
+    log("Adjuntando (%d opciones)..." % len(inputs))
+    for n, i in enumerate(inputs):
         try:
-            driver.execute_script("arguments[0].style.display='block';", i)
             i.send_keys(ruta)
-            ok = True
-            break
         except Exception:
             continue
-    if not ok:
-        # soltar el archivo sobre el mensaje (como arrastrarlo)
-        datos = base64.b64encode(open(ruta, "rb").read()).decode("ascii")
-        driver.execute_script("""
-            var b = atob(arguments[0]), a = new Uint8Array(b.length);
-            for (var k = 0; k < b.length; k++) a[k] = b.charCodeAt(k);
-            var f = new File([a], arguments[1], {type: 'application/vnd.ms-excel'});
-            var dt = new DataTransfer(); dt.items.add(f);
-            var t = arguments[2];
-            ['dragenter','dragover','drop'].forEach(function (n) {
-                t.dispatchEvent(new DragEvent(n, {bubbles: true, cancelable: true, dataTransfer: dt}));
-            });""", datos, nombre, cuerpo(driver))
-    fin = time.time() + 90
-    base = os.path.splitext(nombre)[0][:25]
-    while time.time() < fin:
-        time.sleep(2)
-        if base in driver.find_element_by_tag_name("body").text:
+        if esperar_adjunto(driver, nombre, 20):
             log("Adjunto listo: %s" % nombre)
             return
+        log("   opcion %d no sirvio" % (n + 1))
+    # ultima opcion: soltar el archivo sobre el mensaje (como arrastrarlo)
+    datos = base64.b64encode(open(ruta, "rb").read()).decode("ascii")
+    driver.execute_script("""
+        var b = atob(arguments[0]), a = new Uint8Array(b.length);
+        for (var k = 0; k < b.length; k++) a[k] = b.charCodeAt(k);
+        var f = new File([a], arguments[1], {type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+        var dt = new DataTransfer(); dt.items.add(f);
+        var t = arguments[2];
+        ['dragenter','dragover','drop'].forEach(function (n) {
+            t.dispatchEvent(new DragEvent(n, {bubbles: true, cancelable: true, dataTransfer: dt}));
+        });""", datos, nombre, cuerpo(driver))
+    if esperar_adjunto(driver, nombre, 60):
+        log("Adjunto listo: %s" % nombre)
+        return
     raise RuntimeError("No aparecio el adjunto en el correo.")
 
 
