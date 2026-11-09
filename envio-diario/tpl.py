@@ -51,7 +51,7 @@ MEDIDORES = [
     "GDAMCPENAX01_WB_P", "GDAMCPENH01_WB_P", "GDAMCPENH01_WB_R",
 ]
 
-URL_SIMEC = "https://smec.cenace.gob.ec/SMEC/Login.do"
+URL_SIMEC = "https://smec.cenace.gob.ec/SMEC/"   # (Login.do sin datos da "Usuario o Password incorrectos")
 URL_SIMEC_ENVIAR = "https://smec.cenace.gob.ec/SMEC/ServletUploads"
 URL_SIMEC_ESTADO = "https://smec.cenace.gob.ec/SMEC/ConsultarEstadoArchivos.do"
 
@@ -283,26 +283,41 @@ def descargar_con_tpl(fecha):
 
 
 # ---------------------------------------------------------------- 2) SIMEC
+def fuente(driver):
+    """page_source que no se cae si hay un aviso (alert) abierto."""
+    for _ in range(3):
+        try:
+            return driver.page_source
+        except Exception:
+            avisos = aceptar_alertas(driver)
+            if avisos:
+                log("   SIMEC dice: %s" % " | ".join(avisos))
+            time.sleep(1)
+    return ""
+
+
+def dentro_simec(driver):
+    t = fuente(driver)
+    return "Salir" in t and "EEASA" in t
+
+
 def entrar_simec(driver):
     driver.get(URL_SIMEC)
     time.sleep(3)
-    if "ERR_CERT" in driver.page_source or "no es privada" in driver.page_source:
-        log("SIMEC: Chrome muestra 'La conexion no es privada'. Pasalo a mano (Configuracion avanzada > Acceder); espero 5 min...")
-        fin = time.time() + 300
-        while time.time() < fin and ("ERR_CERT" in driver.page_source or "no es privada" in driver.page_source):
-            time.sleep(3)
-    if "Salir" in driver.page_source and "EEASA" in driver.page_source:
+    aceptar_alertas(driver)
+    if dentro_simec(driver):
+        log("SIMEC: ya estaba con sesion")
         return
     if login_automatico(driver, leer_claves("simec"), False):
-        time.sleep(3)
-    if "Salir" in driver.page_source:
+        time.sleep(4)
+    if dentro_simec(driver):
         log("SIMEC: sesion iniciada")
         return
-    log("SIMEC pide iniciar sesion: entra a mano en Chrome (5 minutos)...")
+    log("SIMEC: no pude entrar solo (revisa usuario/clave en credenciales.ini). Entra a mano en Chrome (5 minutos)...")
     fin = time.time() + 300
     while time.time() < fin:
         time.sleep(3)
-        if "Salir" in driver.page_source:
+        if dentro_simec(driver):
             return
     raise RuntimeError("No se inicio sesion en SIMEC.")
 
@@ -435,7 +450,7 @@ def main():
     if not os.path.isdir(bosnis.CARPETA_LOG):
         os.makedirs(bosnis.CARPETA_LOG)
     bosnis._log_file = open(os.path.join(bosnis.CARPETA_LOG, "tpl_%s.txt" % fecha.strftime("%Y-%m-%d")), "a")
-    log("==== TPL v6 %s %s %s====" % (a.accion, fecha, "(PRUEBA) " if a.prueba else ""))
+    log("==== TPL v7 %s %s %s====" % (a.accion, fecha, "(PRUEBA) " if a.prueba else ""))
 
     driver = None
     errores = 0
