@@ -30,7 +30,7 @@ from selenium.webdriver.common.keys import Keys
 import bosnis
 from bosnis import log, MESES, leer_claves, login_automatico, visibles
 
-VERSION = "curva en vivo v6"
+VERSION = "curva en vivo v7"
 AQUI = bosnis.AQUI
 PERFIL = os.path.join(AQUI, "perfil-curva")          # Chrome aparte: no choca con diario.bat
 URL_CURVAS = "http://172.20.18.45:666/curvas"
@@ -324,7 +324,16 @@ def main():
     escritas = set()
     fin_total = datetime.datetime.combine(fecha_hoja, datetime.time(0, 0)) + \
         datetime.timedelta(hours=hh, minutes=mm + 30)
+    base_dia = datetime.datetime.combine(fecha_hoja, datetime.time(0, 0))
     while True:
+        # solo refrescar cuando ya cerro un cuarto de hora nuevo (no mover la pagina por gusto)
+        if escritas:
+            siguiente = base_dia + datetime.timedelta(minutes=15 * max(escritas))   # fila f -> hora (f-1)*15 ... la siguiente es f*15
+            if datetime.datetime.now() < siguiente + datetime.timedelta(minutes=2):
+                if datetime.datetime.now() > fin_total:
+                    break
+                time.sleep(30)
+                continue
         try:
             driver.switch_to.window(pest_dm)
             driver.refresh()
