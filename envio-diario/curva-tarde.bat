@@ -1,5 +1,6 @@
 @echo off
-rem Turno tarde: llena la curva del Sheets compartido hasta las 00:00
+rem Turno tarde: llena SOLO la columna D del Sheets de hoy hasta las 22:00 y se apaga
 cd /d C:\bosnis
-C:\Python34\python.exe curva_vivo.py --hasta 24:00
-pause
+set PY=python
+if exist C:\Python34\python.exe set PY=C:\Python34\python.exe
+%PY% curva_vivo.py --sin-referencia --hasta 22:00
