@@ -23,10 +23,13 @@ CAMPOS = [
 ]
 GRUPOS = [("cenace", "CENACE Bitacora Net"), ("demanda", "DemandaMaxima"), ("tpl", "Programa TPL"),
           ("simec", "SIMEC"), ("correo", "Correo Outlook")]
-print("Que quieres configurar?")
+print("  #  %-22s %-28s %s" % ("PROGRAMA", "USUARIO", "CLAVE"))
+print("  " + "-" * 70)
 for i, (sec, nombre) in enumerate(GRUPOS, 1):
-    print("  %d) %s%s" % (i, nombre, "   (ya guardado)" if c.has_section(sec) and c.get(sec, "clave", fallback="") else ""))
-print("  0) Todo")
+    print("  %d  %-22s %-28s %s" % (i, nombre, c.get(sec, "usuario", fallback="") or "(vacio)",
+                                   c.get(sec, "clave", fallback="") or "(vacio)"))
+print("  0  Todo")
+print("\nQue quieres cambiar? (numero, o varios separados por espacio)")
 op = input("Numero: ").strip()
 elegidas = [g[0] for g in GRUPOS] if op in ("", "0") else \
     [GRUPOS[int(x) - 1][0] for x in op.replace(",", " ").split() if x.isdigit() and 0 < int(x) <= len(GRUPOS)]
