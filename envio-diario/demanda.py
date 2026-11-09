@@ -216,6 +216,9 @@ def cancelar_onedrive(driver):
 def adjunto_visible(driver, nombre):
     base = os.path.splitext(nombre)[0][:25]
     c = cuerpo(driver)
+    todo = driver.find_element_by_tag_name("body").text or ""
+    if "no se insert" in todo.lower() or "wasn't inserted" in todo.lower():
+        return False                       # es el aviso de "no es imagen", no el adjunto
     zona = driver.find_elements_by_css_selector("[aria-label*='djunto'], [aria-label*='ttachment']")
     textos = " ".join((z.text or "") + " " + (z.get_attribute("aria-label") or "") for z in zona)
     return base in textos or base in (driver.find_element_by_tag_name("body").text or "").replace((c.text if c else ""), "")
