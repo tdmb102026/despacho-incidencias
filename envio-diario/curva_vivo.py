@@ -30,7 +30,7 @@ from selenium.webdriver.common.keys import Keys
 import bosnis
 from bosnis import log, MESES, leer_claves, login_automatico, visibles
 
-VERSION = "curva en vivo v7"
+VERSION = "curva en vivo v8"
 AQUI = bosnis.AQUI
 PERFIL = os.path.join(AQUI, "perfil-curva")          # Chrome aparte: no choca con diario.bat
 URL_CURVAS = "http://172.20.18.45:666/curvas"
@@ -323,7 +323,7 @@ def main():
 
     escritas = set()
     fin_total = datetime.datetime.combine(fecha_hoja, datetime.time(0, 0)) + \
-        datetime.timedelta(hours=hh, minutes=mm + 30)
+        datetime.timedelta(hours=hh, minutes=mm + 10)      # 05:45 -> se apaga a mas tardar 05:55
     base_dia = datetime.datetime.combine(fecha_hoja, datetime.time(0, 0))
     while True:
         # solo refrescar cuando ya cerro un cuarto de hora nuevo (no mover la pagina por gusto)
@@ -375,8 +375,12 @@ def main():
                 pest_dm = [h for h in driver.window_handles if h != pest_sheets][0]
                 driver.switch_to.window(pest_dm)
                 entrar_demanda(driver)
-        time.sleep(180)
-    log("==== FIN: curva llena hasta %s ====" % a.hasta)
+        time.sleep(60)
+    log("==== FIN: curva llena hasta %s. Se cierra solo. ====" % a.hasta)
+    try:
+        driver.quit()
+    except Exception:
+        pass
     return 0
 
 
