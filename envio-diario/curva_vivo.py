@@ -30,7 +30,7 @@ from selenium.webdriver.common.keys import Keys
 import bosnis
 from bosnis import log, MESES, leer_claves, login_automatico, visibles
 
-VERSION = "curva en vivo v5"
+VERSION = "curva en vivo v6"
 AQUI = bosnis.AQUI
 PERFIL = os.path.join(AQUI, "perfil-curva")          # Chrome aparte: no choca con diario.bat
 URL_CURVAS = "http://172.20.18.45:666/curvas"
@@ -257,10 +257,12 @@ def escribir(driver, columna, desde, valores):
     caja.send_keys(Keys.CONTROL, "a")
     caja.send_keys("'%s'!%s%d" % (PESTANA, columna, desde) + Keys.ENTER)
     time.sleep(1.5)
-    ac = ActionChains(driver)
-    for v in valores:
-        ac.send_keys(v).send_keys(Keys.ENTER)
-    ac.perform()
+    for i in range(0, len(valores), 12):        # de a 12 para no saturar al Chrome viejo
+        ac = ActionChains(driver)
+        for v in valores[i:i + 12]:
+            ac.send_keys(v).send_keys(Keys.ENTER)
+        ac.perform()
+        time.sleep(0.5)
     time.sleep(2)
 
 
@@ -350,7 +352,8 @@ def main():
             if ultima_fila in escritas or datetime.datetime.now() > fin_total:
                 break
         except Exception:
-            log("ERROR (reintento en 3 min):\n" + traceback.format_exc().splitlines()[-1])
+            e = sys.exc_info()[1]
+            log("ERROR (reintento en 3 min): %s: %s" % (type(e).__name__, (getattr(e, "msg", None) or str(e)).strip()[:300]))
             try:
                 driver.title
             except Exception:
