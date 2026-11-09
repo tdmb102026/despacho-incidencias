@@ -30,7 +30,7 @@ from selenium.webdriver.common.keys import Keys
 import bosnis
 from bosnis import log, MESES, leer_claves, login_automatico, visibles
 
-VERSION = "curva en vivo v8"
+VERSION = "curva en vivo v9"
 AQUI = bosnis.AQUI
 PERFIL = os.path.join(AQUI, "perfil-curva")          # Chrome aparte: no choca con diario.bat
 URL_CURVAS = "http://172.20.18.45:666/curvas"
@@ -340,7 +340,20 @@ def main():
             time.sleep(8)
             if not driver.execute_script("return document.querySelectorAll('.js-plotly-plot').length"):
                 entrar_demanda(driver)
-            datos, nombres = datos_reales(driver, fecha_hoja)
+            # la pagina carga las graficas de a poco: esperar hasta 60 s a que aparezca el dato nuevo
+            ya = max(escritas) if escritas else 1
+            for _ in range(12):
+                datos, nombres = datos_reales(driver, fecha_hoja)
+                if datos and max(datos) > ya:
+                    break
+                time.sleep(5)
+            if escritas and (not datos or max(datos) <= ya):
+                hora_f = lambda f: (datetime.datetime(2000, 1, 1) + datetime.timedelta(minutes=15 * (f - 1))).strftime("%H:%M")
+                aviso = "Esperando el dato de las %s (DemandaMaxima aun muestra hasta las %s)" % (
+                    hora_f(ya + 1), hora_f(max(datos)) if datos else "-")
+                if aviso != getattr(main, "ultimo_aviso", ""):
+                    main.ultimo_aviso = aviso
+                    log(aviso)
             if datos and getattr(datos_reales, "elegida", "") != getattr(main, "ultima_linea", ""):
                 main.ultima_linea = datos_reales.elegida
                 log("Dato real desde: %s" % datos_reales.elegida)
