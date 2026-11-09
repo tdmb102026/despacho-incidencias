@@ -30,7 +30,7 @@ from selenium.webdriver.common.keys import Keys
 import bosnis
 from bosnis import log, MESES, leer_claves, login_automatico, visibles
 
-VERSION = "curva en vivo v2"
+VERSION = "curva en vivo v3"
 AQUI = bosnis.AQUI
 PERFIL = os.path.join(AQUI, "perfil-curva")          # Chrome aparte: no choca con diario.bat
 URL_CURVAS = "http://172.20.18.45:666/curvas"
@@ -102,15 +102,30 @@ def referencia(fecha_hoja):
 
 # ---------------------------------------------------------------- DemandaMaxima
 JS_TRAZAS = """
+function dos(n) { return (n < 10 ? '0' : '') + n; }
+function fmt(v) {
+  if (v === null || v === undefined) return '';
+  if (typeof v === 'number') {            // milisegundos: plotly los muestra como UTC
+    var d = new Date(v);
+    return d.getUTCFullYear() + '-' + dos(d.getUTCMonth() + 1) + '-' + dos(d.getUTCDate()) + ' ' +
+           dos(d.getUTCHours()) + ':' + dos(d.getUTCMinutes());
+  }
+  if (v instanceof Date) {
+    return v.getFullYear() + '-' + dos(v.getMonth() + 1) + '-' + dos(v.getDate()) + ' ' +
+           dos(v.getHours()) + ':' + dos(v.getMinutes());
+  }
+  return String(v);
+}
 var out = [];
 document.querySelectorAll('.js-plotly-plot').forEach(function (g) {
+  var tit = (g.layout && g.layout.title && (g.layout.title.text || g.layout.title)) || '';
   (g.data || []).forEach(function (t) {
     if (!t.x || !t.y) return;
-    var tit = (g.layout && g.layout.title && (g.layout.title.text || g.layout.title)) || '';
     out.push({name: String(t.name || ''), dash: (t.line && t.line.dash) || '', fill: String(t.fill || ''),
               titulo: String(tit), visible: String(t.visible === undefined ? true : t.visible),
-              x: Array.prototype.map.call(t.x, function (v) { return String(v); }),
-              y: Array.prototype.slice.call(t.y)});
+              tipo: typeof t.x[0],
+              x: Array.prototype.map.call(t.x, fmt),
+              y: Array.prototype.map.call(t.y, function (v) { return v === null ? null : Number(v); })});
   });
 });
 return out;
@@ -118,11 +133,13 @@ return out;
 
 
 def a_fecha(txt):
-    txt = txt.replace("T", " ")[:16]
-    try:
-        return datetime.datetime.strptime(txt, "%Y-%m-%d %H:%M")
-    except ValueError:
-        return None
+    txt = txt.replace("T", " ").strip()
+    for formato, largo in (("%Y-%m-%d %H:%M", 16), ("%d/%m/%Y %H:%M", 16), ("%Y/%m/%d %H:%M", 16)):
+        try:
+            return datetime.datetime.strptime(txt[:largo], formato)
+        except ValueError:
+            pass
+    return None
 
 
 def entrar_demanda(driver):
@@ -155,7 +172,15 @@ def datos_reales(driver, fecha_hoja):
     mejor = {}
     mejor_puntaje = -1
     nombres = []
-    for t in driver.execute_script(JS_TRAZAS):
+    trazas = driver.execute_script(JS_TRAZAS) or []
+    if not trazas:
+        nombres.append("ninguna grafica con datos (%d graficas en la pagina)"
+                       % driver.execute_script("return document.querySelectorAll('.js-plotly-plot').length"))
+    for t in trazas:
+        if not getattr(datos_reales, "mostrado", False):
+            ej = t["x"][-1] if t["x"] else "-"
+            log("   linea: %s | %s | x=%s (%s) y=%s" % (t["titulo"][:30], t["name"][:25], ej, t["tipo"],
+                                                    t["y"][-1] if t["y"] else "-"))
         n = t["name"].lower()
         if not n.strip() or "proyec" in n or "banda" in n or t["dash"] not in ("", "solid") \
                 or t["fill"] not in ("", "none") or t["visible"] == "legendonly":
@@ -182,6 +207,7 @@ def datos_reales(driver, fecha_hoja):
         if puntaje > mejor_puntaje:
             mejor, mejor_puntaje = filas, puntaje
             datos_reales.elegida = "%s / %s" % (t["titulo"], t["name"])
+    datos_reales.mostrado = True
     return mejor, nombres
 
 
