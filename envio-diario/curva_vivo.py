@@ -160,8 +160,6 @@ def datos_reales(driver, fecha_hoja):
         if not n.strip() or "proyec" in n or "banda" in n or t["dash"] not in ("", "solid") \
                 or t["fill"] not in ("", "none") or t["visible"] == "legendonly":
             continue
-        if "totales eeasa" not in t["titulo"].lower():
-            continue
         filas = {}
         for x, y in zip(t["x"], t["y"]):
             m = a_fecha(x)
@@ -178,7 +176,8 @@ def datos_reales(driver, fecha_hoja):
             continue
         # preferir la grafica "Dia" y luego "Semana" (no la de racionamiento)
         tit = t["titulo"].lower()
-        puntaje = len(filas) * 10 + (2 if "día" in tit or "dia" in tit else 1 if "semana" in tit else 0)
+        puntaje = len(filas) * 10 + (2 if "día" in tit or "dia" in tit else 1 if "semana" in tit else 0) \
+            + (5 if "totales eeasa" in tit else 0) - (5 if "racion" in tit else 0)
         nombres.append("%s / %s (%d)" % (t["titulo"], t["name"], len(filas)))
         if puntaje > mejor_puntaje:
             mejor, mejor_puntaje = filas, puntaje
