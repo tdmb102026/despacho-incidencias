@@ -30,7 +30,7 @@ from selenium.webdriver.common.keys import Keys
 import bosnis
 from bosnis import log, MESES, leer_claves, login_automatico, visibles
 
-VERSION = "curva en vivo v4"
+VERSION = "curva en vivo v5"
 AQUI = bosnis.AQUI
 PERFIL = os.path.join(AQUI, "perfil-curva")          # Chrome aparte: no choca con diario.bat
 URL_CURVAS = "http://172.20.18.45:666/curvas"
@@ -209,6 +209,8 @@ def datos_reales(driver, fecha_hoja):
                 continue
             if m is None or y < 1000:          # en kW; ceros o vacios no sirven
                 continue
+            if m > datetime.datetime.now() - datetime.timedelta(minutes=1):
+                continue                       # el cuarto de hora aun no termina (dato incompleto)
             f = fila_de(fecha_hoja, m)
             if f:
                 filas[f] = y
