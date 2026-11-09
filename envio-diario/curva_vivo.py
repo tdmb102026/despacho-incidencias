@@ -30,7 +30,7 @@ from selenium.webdriver.common.keys import Keys
 import bosnis
 from bosnis import log, MESES, leer_claves, login_automatico, visibles
 
-VERSION = "curva en vivo v1"
+VERSION = "curva en vivo v2"
 AQUI = bosnis.AQUI
 PERFIL = os.path.join(AQUI, "perfil-curva")          # Chrome aparte: no choca con diario.bat
 URL_CURVAS = "http://172.20.18.45:666/curvas"
@@ -106,7 +106,9 @@ var out = [];
 document.querySelectorAll('.js-plotly-plot').forEach(function (g) {
   (g.data || []).forEach(function (t) {
     if (!t.x || !t.y) return;
-    out.push({name: String(t.name || ''), dash: (t.line && t.line.dash) || '',
+    var tit = (g.layout && g.layout.title && (g.layout.title.text || g.layout.title)) || '';
+    out.push({name: String(t.name || ''), dash: (t.line && t.line.dash) || '', fill: String(t.fill || ''),
+              titulo: String(tit), visible: String(t.visible === undefined ? true : t.visible),
               x: Array.prototype.map.call(t.x, function (v) { return String(v); }),
               y: Array.prototype.slice.call(t.y)});
   });
@@ -151,22 +153,36 @@ def entrar_demanda(driver):
 def datos_reales(driver, fecha_hoja):
     """{fila: kW} del dia de la hoja, de la linea de la semana actual (continua, no proyeccion ni banda)."""
     mejor = {}
+    mejor_puntaje = -1
     nombres = []
     for t in driver.execute_script(JS_TRAZAS):
         n = t["name"].lower()
-        if "proyec" in n or "banda" in n or t["dash"] not in ("", "solid"):
+        if not n.strip() or "proyec" in n or "banda" in n or t["dash"] not in ("", "solid") \
+                or t["fill"] not in ("", "none") or t["visible"] == "legendonly":
+            continue
+        if "totales eeasa" not in t["titulo"].lower():
             continue
         filas = {}
         for x, y in zip(t["x"], t["y"]):
             m = a_fecha(x)
-            if m is None or y is None:
+            try:
+                y = float(y)
+            except (TypeError, ValueError):
+                continue
+            if m is None or y < 1000:          # en kW; ceros o vacios no sirven
                 continue
             f = fila_de(fecha_hoja, m)
             if f:
-                filas[f] = float(y)
-        nombres.append("%s (%d)" % (t["name"], len(filas)))
-        if len(filas) > len(mejor):
-            mejor = filas
+                filas[f] = y
+        if not filas:
+            continue
+        # preferir la grafica "Dia" y luego "Semana" (no la de racionamiento)
+        tit = t["titulo"].lower()
+        puntaje = len(filas) * 10 + (2 if "día" in tit or "dia" in tit else 1 if "semana" in tit else 0)
+        nombres.append("%s / %s (%d)" % (t["titulo"], t["name"], len(filas)))
+        if puntaje > mejor_puntaje:
+            mejor, mejor_puntaje = filas, puntaje
+            datos_reales.elegida = "%s / %s" % (t["titulo"], t["name"])
     return mejor, nombres
 
 
@@ -271,6 +287,9 @@ def main():
             if not driver.execute_script("return document.querySelectorAll('.js-plotly-plot').length"):
                 entrar_demanda(driver)
             datos, nombres = datos_reales(driver, fecha_hoja)
+            if datos and getattr(datos_reales, "elegida", "") != getattr(main, "ultima_linea", ""):
+                main.ultima_linea = datos_reales.elegida
+                log("Dato real desde: %s" % datos_reales.elegida)
             pendientes = sorted(f for f in datos if f not in escritas and f <= ultima_fila)
             if not datos:
                 log("Sin datos del %s todavia. Lineas vistas: %s" % (fecha_hoja.strftime("%d/%m"), "; ".join(nombres)))
