@@ -1,4 +1,9 @@
 @echo off
-rem Turno nocturno: llena la curva del Sheets compartido hasta las 05:45 y se apaga solo
+rem Turno nocturno: 1) Sheets de HOY hasta las 00:00  2) Sheets del dia NUEVO desde 00:15 hasta 05:45
 cd /d C:\bosnis
+echo.
+echo === PARTE 1: archivo de HOY (hasta las 00:00) ===
+C:\Python34\python.exe curva_vivo.py --hasta 24:00
+echo.
+echo === PARTE 2: archivo del DIA NUEVO (00:15 a 05:45) ===
 C:\Python34\python.exe curva_vivo.py --hasta 05:45
