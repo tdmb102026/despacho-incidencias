@@ -18,6 +18,8 @@ CAMPOS = [
     ("tpl", "clave", "Programa TPL - Contrasena", True),
     ("simec", "usuario", "SIMEC (smec.cenace.gob.ec) - usuario", False),
     ("simec", "clave", "SIMEC - clave", True),
+    ("correo", "usuario", "Correo Outlook (cecon@eeasa.com.ec) - usuario", False),
+    ("correo", "clave", "Correo Outlook - clave", True),
 ]
 print("Escribe cada dato y Enter. Ojo: las claves se ven en pantalla.")
 print("Si ya estaba guardado, solo presiona Enter para dejarlo igual.\n")
