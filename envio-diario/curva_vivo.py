@@ -280,6 +280,9 @@ def main():
     bosnis._log_file = open(os.path.join(bosnis.CARPETA_LOG, "curva_vivo_%s.txt" % datetime.date.today()), "a")
     log("==== %s (hasta %s)%s ====" % (VERSION, a.hasta, " SOLO LEER" if a.solo_leer else ""))
 
+    if a.hasta in ("24:00", "23:59") and datetime.datetime.now().hour < 6 and "noche" in (os.environ.get("TURNO", "")):
+        log("Ya paso la medianoche: salto la parte de ayer.")
+        return 0
     link = a.link
     if not link:
         print("\nPega el link del Google Sheets de HOY (clic derecho > Pegar) y Enter.")
