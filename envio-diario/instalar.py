@@ -26,7 +26,7 @@ except NameError:
   except Exception as e:
     print("(no se pudo leer la ultima version, uso la rama)", e)
 
-for nombre in ("bosnis.py", "bosnis.bat", "bosnis-prueba.bat", "bosnis-prueba-completa.bat", "configurar.py", "configurar.bat", "tpl.py", "tpl-prueba.bat", "diario.bat", "demanda.py", "curva.vbs", "demanda-prueba.bat", "diario-prueba.bat", "curva_vivo.py", "leer4de4.vbs", "curva-noche.bat", "curva-tarde.bat", "curva-prueba.bat", "curva-login.bat", "curva-dia.bat"):
+for nombre in ("bosnis.py", "bosnis.bat", "bosnis-prueba.bat", "bosnis-prueba-completa.bat", "configurar.py", "configurar.bat", "tpl.py", "tpl-prueba.bat", "diario.bat", "demanda.py", "curva.vbs", "demanda-prueba.bat", "diario-prueba.bat", "curva_vivo.py", "leer4de4.vbs", "curva-noche.bat", "curva-tarde.bat", "curva-prueba.bat", "curva-login.bat", "curva-dia.bat", "noche.bat", "noche-prueba.bat"):
     print("Bajando", nombre)
     datos = u.urlopen(BASE + nombre + "?t=%d" % time.time(), timeout=60).read()
     open(os.path.join(DESTINO, nombre), "wb").write(datos)
