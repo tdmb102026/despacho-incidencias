@@ -30,7 +30,7 @@ from selenium.webdriver.common.keys import Keys
 import bosnis
 from bosnis import log, MESES, leer_claves, login_automatico, visibles
 
-VERSION = "curva en vivo v3"
+VERSION = "curva en vivo v4"
 AQUI = bosnis.AQUI
 PERFIL = os.path.join(AQUI, "perfil-curva")          # Chrome aparte: no choca con diario.bat
 URL_CURVAS = "http://172.20.18.45:666/curvas"
@@ -116,16 +116,30 @@ function fmt(v) {
   }
   return String(v);
 }
+function arr(v) {                         // plotly nuevo guarda {dtype, bdata} en base64
+  if (!v) return [];
+  if (v.bdata !== undefined) {
+    var b = atob(v.bdata), u = new Uint8Array(b.length);
+    for (var i = 0; i < b.length; i++) u[i] = b.charCodeAt(i);
+    var T = {f8: Float64Array, f4: Float32Array, i4: Int32Array, u4: Uint32Array, i2: Int16Array,
+             u2: Uint16Array, i1: Int8Array, u1: Uint8Array}[v.dtype] || Float64Array;
+    return Array.prototype.slice.call(new T(u.buffer));
+  }
+  return Array.prototype.slice.call(v);
+}
 var out = [];
 document.querySelectorAll('.js-plotly-plot').forEach(function (g) {
   var tit = (g.layout && g.layout.title && (g.layout.title.text || g.layout.title)) || '';
-  (g.data || []).forEach(function (t) {
-    if (!t.x || !t.y) return;
+  (g.data || []).forEach(function (t0, k) {
+    var f = (g._fullData && g._fullData[k]) || {};
+    var t = {name: t0.name, line: t0.line, fill: t0.fill, visible: t0.visible,
+             x: arr(f.x && f.x.length ? f.x : t0.x), y: arr(f.y && f.y.length ? f.y : t0.y)};
+    if (!t.x.length || !t.y.length) return;
     out.push({name: String(t.name || ''), dash: (t.line && t.line.dash) || '', fill: String(t.fill || ''),
               titulo: String(tit), visible: String(t.visible === undefined ? true : t.visible),
               tipo: typeof t.x[0],
-              x: Array.prototype.map.call(t.x, fmt),
-              y: Array.prototype.map.call(t.y, function (v) { return v === null ? null : Number(v); })});
+              x: t.x.map(fmt),
+              y: t.y.map(function (v) { return v === null ? null : Number(v); })});
   });
 });
 return out;
@@ -182,7 +196,8 @@ def datos_reales(driver, fecha_hoja):
             log("   linea: %s | %s | x=%s (%s) y=%s" % (t["titulo"][:30], t["name"][:25], ej, t["tipo"],
                                                     t["y"][-1] if t["y"] else "-"))
         n = t["name"].lower()
-        if not n.strip() or "proyec" in n or "banda" in n or t["dash"] not in ("", "solid") \
+        if not n.strip() or "proyec" in n or "banda" in n or "incomplet" in n or "mite" in n \
+                or t["dash"] not in ("", "solid") \
                 or t["fill"] not in ("", "none") or t["visible"] == "legendonly":
             continue
         filas = {}
@@ -202,7 +217,8 @@ def datos_reales(driver, fecha_hoja):
         # preferir la grafica "Dia" y luego "Semana" (no la de racionamiento)
         tit = t["titulo"].lower()
         puntaje = len(filas) * 10 + (2 if "día" in tit or "dia" in tit else 1 if "semana" in tit else 0) \
-            + (5 if "totales eeasa" in tit else 0) - (5 if "racion" in tit else 0)
+            + (5 if "totales eeasa" in tit else 0) - (5 if "racion" in tit else 0) \
+            + (100000 if fecha_hoja.strftime("%d/%m") in t["name"] else 0)      # "Semana 45 - 08/11"
         nombres.append("%s / %s (%d)" % (t["titulo"], t["name"], len(filas)))
         if puntaje > mejor_puntaje:
             mejor, mejor_puntaje = filas, puntaje
