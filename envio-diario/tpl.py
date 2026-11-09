@@ -37,6 +37,7 @@ TITULO_LOGIN = "TPL Ventana de inicio"
 TITULO_PRINCIPAL = "Terminal Portatil de Lectura"
 TITULO_LLAMADA = "Llamada a lista de Puntos"   # dialogo "Se recuperaran datos desde el dia ..." -> Aceptar
 ACEPTAR_LLAMADA = (196, 120)                    # boton Aceptar dentro de ese dialogo
+TITULO_RESULTADOS = "Resultados de llamada"     # al terminar: lista "Ficheros generados: 1" -> Aceptar
 
 # Posicion de los botones dentro de la ventana del TPL (pixeles desde la esquina de la ventana)
 ICONO_DESCARGA = (90, 61)          # icono verde del medio, desde la esquina IZQUIERDA superior
@@ -265,6 +266,15 @@ def descargar_con_tpl(fecha):
         if not faltan:
             time.sleep(10)   # que termine de escribir el ultimo
             log("Los 26 archivos estan en C:\\TPL\\datos")
+            r = esperar_ventana(TITULO_RESULTADOS, 60)
+            if r:
+                al_frente(r)
+                tecla(VK_RETURN)
+                time.sleep(2)
+                if buscar_ventana(TITULO_RESULTADOS):
+                    user32.PostMessageW(buscar_ventana(TITULO_RESULTADOS), WM_CLOSE, 0, 0)
+                    time.sleep(2)
+                log("   ventana de resultados cerrada")
             h = buscar_ventana(TITULO_PRINCIPAL)
             if h:
                 user32.PostMessageW(h, WM_CLOSE, 0, 0)
@@ -276,6 +286,11 @@ def descargar_con_tpl(fecha):
 def entrar_simec(driver):
     driver.get(URL_SIMEC)
     time.sleep(3)
+    if "ERR_CERT" in driver.page_source or "no es privada" in driver.page_source:
+        log("SIMEC: Chrome muestra 'La conexion no es privada'. Pasalo a mano (Configuracion avanzada > Acceder); espero 5 min...")
+        fin = time.time() + 300
+        while time.time() < fin and ("ERR_CERT" in driver.page_source or "no es privada" in driver.page_source):
+            time.sleep(3)
     if "Salir" in driver.page_source and "EEASA" in driver.page_source:
         return
     if login_automatico(driver, leer_claves("simec"), False):
@@ -420,7 +435,7 @@ def main():
     if not os.path.isdir(bosnis.CARPETA_LOG):
         os.makedirs(bosnis.CARPETA_LOG)
     bosnis._log_file = open(os.path.join(bosnis.CARPETA_LOG, "tpl_%s.txt" % fecha.strftime("%Y-%m-%d")), "a")
-    log("==== TPL v4 %s %s %s====" % (a.accion, fecha, "(PRUEBA) " if a.prueba else ""))
+    log("==== TPL v5 %s %s %s====" % (a.accion, fecha, "(PRUEBA) " if a.prueba else ""))
 
     driver = None
     errores = 0
