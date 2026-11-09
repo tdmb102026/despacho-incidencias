@@ -73,6 +73,13 @@ def log(msg):
         _log_file.flush()
 
 
+def pausa(texto):
+    """Espera Enter, salvo que diario-prueba.bat ponga SIN_PAUSA=1."""
+    if os.environ.get("SIN_PAUSA") == "1":
+        return
+    input(texto)
+
+
 def carpeta_dia(fecha):
     mes = MESES[fecha.month - 1]
     return os.path.join(RAIZ_BOSNI.replace("{Y}", str(fecha.year)),
@@ -495,7 +502,7 @@ def main():
     finally:
         if errores == 0 and a.prueba:
             try:
-                input("\nPrueba terminada. Revisa Chrome y presiona Enter para cerrarlo...")
+                pausa("\nPrueba terminada. Revisa Chrome y presiona Enter para cerrarlo...")
             except Exception:
                 pass
         if errores == 0:
@@ -504,7 +511,7 @@ def main():
             log("Chrome queda abierto para que revises.")
             if a.prueba:
                 try:
-                    input("\nPresiona Enter para salir...")
+                    pausa("\nPresiona Enter para salir...")
                 except Exception:
                     pass
     log("==== FIN: %s ====" % ("TODO OK" if errores == 0 else "%d problema(s)" % errores))

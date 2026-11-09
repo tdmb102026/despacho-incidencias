@@ -361,7 +361,7 @@ def mandar_correo(fecha, archivo, prueba):
         if prueba:
             log("PRUEBA: el correo quedo listo pero NO se envio. Revisalo en Chrome.")
             try:
-                input("\nRevisa el correo en Chrome y presiona Enter (NO se envia)...")
+                bosnis.pausa("\nRevisa el correo en Chrome y presiona Enter (NO se envia)...")
             except Exception:
                 pass
             return True
