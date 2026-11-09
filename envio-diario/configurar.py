@@ -19,14 +19,14 @@ CAMPOS = [
     ("simec", "usuario", "SIMEC (smec.cenace.gob.ec) - usuario", False),
     ("simec", "clave", "SIMEC - clave", True),
 ]
-print("Escribe cada dato y Enter. Las claves no se ven al escribir (es normal).")
+print("Escribe cada dato y Enter. Ojo: las claves se ven en pantalla.")
 print("Si ya estaba guardado, solo presiona Enter para dejarlo igual.\n")
 for sec, campo, texto, secreto in CAMPOS:
     if not c.has_section(sec):
         c.add_section(sec)
     actual = c.get(sec, campo, fallback="")
     marca = " [guardado]" if actual else ""
-    v = (getpass.getpass if secreto else input)("%s%s: " % (texto, marca)).strip()
+    v = input("%s%s: " % (texto, (" [actual: %s]" % actual) if actual else "")).strip()
     if v:
         c.set(sec, campo, v)
 with open(ARCHIVO, "w", encoding="utf-8") as f:
