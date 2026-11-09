@@ -24,7 +24,7 @@ import bosnis
 from bosnis import log, MESES, carpeta_existente, leer_claves, visibles, abrir_chrome
 from selenium.webdriver.common.keys import Keys
 
-VERSION = "demanda v2"
+VERSION = "demanda v3"
 AQUI = bosnis.AQUI
 RAIZ_PARTES = r"D:\PARTES OPERACION CECON\MisDocumentos\excel\PARTES {Y}"
 CARPETA_CURVAS = "DEMANDA EEASA CCND {Y}"            # dentro de PARTES {Y}, luego carpeta del MES
@@ -227,14 +227,67 @@ def esperar_adjunto(driver, nombre, segundos):
         time.sleep(2)
         if cancelar_onedrive(driver):
             return False
+        cerrar_aviso_imagen(driver)
         if adjunto_visible(driver, nombre):
             return True
     return False
 
 
+def cerrar_aviso_imagen(driver):
+    for b in visibles(driver, "button[aria-label='Cerrar'], button[aria-label='Close'], button[aria-label='Descartar']"):
+        try:
+            if "imagen" in (b.find_element_by_xpath("./..").text or "").lower():
+                b.click()
+        except Exception:
+            pass
+
+
+def input_del_clip(driver):
+    """Aprieta Adjuntar archivo > Examinar este equipo, pero sin abrir la ventana de Windows:
+    se atrapa el campo de archivo que Outlook usa para el adjunto normal."""
+    driver.execute_script("""
+        window.__fi = null;
+        if (!window.__fiHook) {
+            window.__fiHook = true;
+            var o = HTMLInputElement.prototype.click;
+            HTMLInputElement.prototype.click = function () {
+                if (this.type === 'file') { window.__fi = this; return; }
+                return o.apply(this, arguments);
+            };
+        }""")
+    clip = primero(driver, ['button[aria-label="Adjuntar archivo"]', 'button[aria-label="Attach file"]',
+                            'button[aria-label*="djuntar"]', 'button[aria-label*="ttach"]'])
+    if not clip:
+        log("   no encuentro el boton Adjuntar archivo")
+        return None
+    clip.click()
+    time.sleep(2)
+    if not driver.execute_script("return window.__fi"):
+        op = boton_texto(driver, ["examinar este equipo", "browse this computer", "cargar desde este equipo",
+                                  "este equipo", "this computer"])
+        if op:
+            op.click()
+            time.sleep(2)
+    return driver.execute_script("""
+        var f = window.__fi;
+        if (f && !f.isConnected) { f.style.display = 'none'; document.body.appendChild(f); }
+        return f;""")
+
+
 def adjuntar(driver, ruta):
     nombre = os.path.basename(ruta)
-    inputs = driver.find_elements_by_css_selector("input[type=file]")
+    try:
+        f = input_del_clip(driver)
+        if f:
+            f.send_keys(ruta)
+            if esperar_adjunto(driver, nombre, 30):
+                log("Adjunto listo: %s" % nombre)
+                return
+            log("   el boton Adjuntar no funciono, pruebo otra forma")
+    except Exception as e:
+        log("   Adjuntar archivo: %s" % e)
+    inputs = [i for i in driver.find_elements_by_css_selector("input[type=file]")
+              if "image" not in (i.get_attribute("accept") or "")]
     log("Adjuntando (%d opciones)..." % len(inputs))
     for n, i in enumerate(inputs):
         try:
