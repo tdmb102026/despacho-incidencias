@@ -67,9 +67,17 @@ _log_file = None
 
 def log(msg):
     linea = "[%s] %s" % (datetime.datetime.now().strftime("%H:%M:%S"), msg)
-    print(linea)
+    linea = linea.replace(u"\u2013", "-").replace(u"\u2014", "-").replace(u"\u00b7", "-")
+    try:
+        print(linea)
+    except UnicodeEncodeError:
+        enc = getattr(sys.stdout, "encoding", None) or "ascii"
+        print(linea.encode(enc, "replace").decode(enc))
     if _log_file:
-        _log_file.write(linea + "\n")
+        try:
+            _log_file.write(linea + "\n")
+        except UnicodeEncodeError:
+            _log_file.write(linea.encode("ascii", "replace").decode("ascii") + "\n")
         _log_file.flush()
 
 
