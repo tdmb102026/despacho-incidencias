@@ -67,6 +67,7 @@ async function iaPost(body, signal) {
 async function iaRead(file, tipo, listas, signal) {
   const { data, canvas } = await iaImage(file);
   const j = await iaPost({ clave: iaClave(), tipo, imagen: data, listas }, signal);
+  if (typeof j.costo === "number") iaGasto(j.costo);
   return { out: j.datos || {}, canvas };
 }
 
@@ -80,7 +81,8 @@ function iaPrims(out) {
   const ubic = out.ubicacion || "", com = out.comentario || "";
   const learned = ubic ? iaUbicPri(ubic) : "";
   const found = parseOCR(ubic + "\n" + com, com).prims;
-  return [learned, out.primario, ...found].map(v => v && priName(v)).filter((v, i, l) => v && l.indexOf(v) === i);
+  // Lo aprendido del recuadro amarillo va al final: solo decide si lo demás no dio nada
+  return [learned, out.primario, ...found, iaComPri(com)].map(v => v && priName(v)).filter((v, i, l) => v && l.indexOf(v) === i);
 }
 // El callcenter escribe la misma ubicación de muchas formas («ULBA BANOS», «ulba-baños», «ULBA BAÑOS SECTOR…»):
 // si no está igual, se toma la aprendida que más se parece o que la contiene
@@ -99,8 +101,75 @@ function iaUbicPri(ubic) {
   }
   return best;
 }
+// ---------- Lo aprendido del recuadro amarillo (Comentario) ----------
+// Cada palabra útil del comentario (barrio, sector, calle) cuenta para el primario con que se mandó.
+// Se guarda como suena (B=V, sin tildes…) para que las faltas de ortografía caigan en la misma palabra.
+const PAL_FUERA = new Set(("SIN LUZ SERVICIO ENERGIA ELECTRICA CORTE POSTE POSTES CABLE CABLES CAIDO CAIDA CAIDOS " +
+  "TRANSFORMADOR MEDIDOR MEDIDORES LAMPARA LAMPARAS ALUMBRADO FOCO FOCOS FASE FASES BAJO VOLTAJE BREAKER " +
+  "BARRIO SECTOR CALLE CALLES AVENIDA PASAJE CASA CASAS DOMICILIO DIRECCION REFERENCIA FRENTE JUNTO DIAGONAL LADO ESQUINA " +
+  "ENTRADA SALIDA CERCA ATRAS DENTRO PARTE ARRIBA ABAJO VIA CARRETERA PANAMERICANA KILOMETRO NUMERO " +
+  "CLIENTE CLIENTES SENOR SENORA SENORITA USUARIO USUARIA LLAMA LLAMO REPORTA REPORTO INDICA INDICO MANIFIESTA " +
+  "SOLICITA PIDE DESDE HASTA HORAS HORA AYER HOY MANANA NOCHE TARDE TODO TODA TODOS TODAS VARIOS VARIAS " +
+  "PARA POR CON UNA UNO UNOS UNAS ESTA ESTE ESTAN ESTOS ESTAS QUE DEL LOS LAS SUS HAY TIENE TIENEN " +
+  "TELF TELEFONO CELULAR CONTACTO CEDULA NOMBRE GRACIAS FAVOR URGENTE AYUDA PROBLEMA DANO DANADO " +
+  "ESCUELA IGLESIA TIENDA PARQUE CANCHA COLEGIO GASOLINERA").split(" ").map(w => sonido(w)));
+const palKey = w => sonido(norm(w).replace(/[^A-Z]/g, ""));
+// Las dos palabras después de «SR», «SRA», «CLIENTE», «NOMBRE»… son el nombre de quien llama: no se aprenden
+const PAL_NOMBRE = new Set(["SR", "SRA", "SRTA", "SENOR", "SENORA", "SENORITA", "DON", "DONA", "CLIENTE", "NOMBRE", "USUARIO", "USUARIA", "LIC", "ING", "DR", "DRA"]);
+function palabras(com) {
+  const ws = [], todas = norm(com || "").split(/[^A-Z]+/).filter(Boolean);
+  for (let i = 0; i < todas.length; i++) {
+    if (PAL_NOMBRE.has(todas[i])) { i += 2; continue; }
+    const w = palKey(todas[i]);
+    if (w.length >= 4 && !PAL_FUERA.has(w)) ws.push(w);
+  }
+  return [...new Set(ws)].slice(0, 25);
+}
+// La palabra aprendida que corresponde a una del comentario: igual, casi igual (una letra de más o de menos)
+// o metida dentro de una palabra pegada («LAFLORIDA» trae «FLORIDA»)
+function palBuscar(w, m) {
+  if (m[w]) return w;
+  let best = "", top = 0;
+  for (const K of Object.keys(m)) {
+    let sim = Math.max(K.length, w.length) >= 6 ? parecido(w, K) : 0;
+    if (K.length >= 5 && w.length > K.length && w.includes(K)) sim = Math.max(sim, 0.9);
+    if (sim >= 0.8 && sim > top) { top = sim; best = K; }
+  }
+  return best;
+}
+// Votan las palabras que casi siempre (75 %) fueron con el mismo primario.
+// Gana el primario que suma al menos 1 voto y le saca el doble al segundo; si no, no adivina.
+function iaComPri(com) {
+  const m = store.get("pal-primario", {}), votos = {};
+  for (const w of palabras(com)) {
+    const K = palBuscar(w, m); if (!K) continue;
+    const c = m[K], tot = Object.values(c).reduce((a, b) => a + b, 0);
+    const [pri, n] = Object.entries(c).sort((a, b) => b[1] - a[1])[0];
+    if (n / tot < 0.75) continue;
+    votos[pri] = (votos[pri] || 0) + n / tot;
+  }
+  const [a, b] = Object.entries(votos).sort((x, y) => y[1] - x[1]);
+  return a && a[1] >= 1 && (!b || a[1] >= 2 * b[1]) ? a[0] : "";
+}
+const palTexto = c => Object.entries(c).map(([p, n]) => p + ":" + n).join("|");
+const palLeer = t => Object.fromEntries(String(t).split("|").map(x => x.split(":")).filter(([p, n]) => p && +n > 0).map(([p, n]) => [p, +n]));
+let iaCom = "", palHecho = "";
+function iaLearnCom(pri) {
+  const hecho = $("f-inc").value + "|" + pri;
+  if (!iaCom || hecho === palHecho) return;
+  palHecho = hecho;
+  const m = store.get("pal-primario", {}), sube = [];
+  for (const w of palabras(iaCom)) {
+    const K = palBuscar(w, m) || w;
+    m[K] = m[K] || {}; m[K][pri] = (m[K][pri] || 0) + 1;
+    sube.push({ t: "pal", k: K, v: palTexto(m[K]) });
+  }
+  store.set("pal-primario", m);
+  iaSubir(sube);
+}
 function iaLearn() {
   const pri = priName($("f-pri").value), k = ubicKey(iaUbic);
+  if (modoIA && pri) iaLearnCom(pri);
   if (!modoIA || !k || !pri) return;
   const m = store.get("ubic-primario", {});
   if (m[k] === pri) return;
@@ -118,7 +187,15 @@ function iaBajar(apr) {
   iaSubir([
     ...Object.entries(u).filter(([k]) => !apr.ubic[k]).map(([k, v]) => ({ t: "ubic", k, v })),
     ...Object.entries(c).filter(([k]) => !apr.codigo[k]).map(([k, v]) => ({ t: "codigo", k, v: v.join("|") })),
+    ...Object.entries(store.get("pal-primario", {})).filter(([k]) => !(apr.pal || {})[k]).map(([k, v]) => ({ t: "pal", k, v: palTexto(v) })),
   ].slice(0, 200));
+  // Palabras: por cada primario se queda la cuenta más alta entre la hoja y el celular
+  const pm = store.get("pal-primario", {});
+  for (const [k, t] of Object.entries(apr.pal || {})) {
+    const h = palLeer(t); pm[k] = pm[k] || {};
+    for (const [p, n] of Object.entries(h)) pm[k][p] = Math.max(pm[k][p] || 0, n);
+  }
+  store.set("pal-primario", pm);
   store.set("ubic-primario", { ...u, ...apr.ubic });
   for (const [k, v] of Object.entries(apr.codigo || {})) { const [tipo, nombre] = v.split("|"); if (nombre) c[k] = [tipo, nombre]; }
   store.set("codigos", c);
@@ -131,7 +208,7 @@ async function iaReadInc(file, signal) {
   const tabs = (out.pestanas || []).map(six).filter(d => d.length === 6);
   const inc = six(out.activa || "") || tabs.at(-1) || "";
   const phones = [...new Set((out.telefonos || []).map(t => t.replace(/\D/g, "")).filter(t => /^0\d{9}$/.test(t)))];
-  return { inc, incs: [...new Set([...tabs, inc].filter(Boolean))], motivo: out.motivo || "", prims: iaPrims(out), ubic: out.ubicacion || "",
+  return { inc, incs: [...new Set([...tabs, inc].filter(Boolean))], motivo: out.motivo || "", prims: iaPrims(out), ubic: out.ubicacion || "", com: out.comentario || "",
     phones, giro: out.giro || 0, canvas, raw: JSON.stringify(out, null, 1) };
 }
 async function processFileIA(file) {
@@ -219,11 +296,12 @@ function readSlotIA(f, n, file) {
 // ---------- exportar e importar lo aprendido (también sirve en Sin IA) ----------
 function aprCuenta() {
   const u = Object.keys(store.get("ubic-primario", {})).length, c = Object.keys(store.get("codigos", {})).length;
-  $("apr-sum").textContent = `Lo aprendido en este celular (${u} ubicaciones, ${c} equipos)`;
+  const w = Object.keys(store.get("pal-primario", {})).length;
+  $("apr-sum").textContent = `Lo aprendido en este celular (${u} ubicaciones, ${w} palabras del comentario, ${c} equipos)`;
 }
 $("apr").addEventListener("toggle", aprCuenta);
 $("apr-exp").onclick = async () => {
-  const txt = JSON.stringify({ despacho: "aprendido", ubic: store.get("ubic-primario", {}), codigos: store.get("codigos", {}) });
+  const txt = JSON.stringify({ despacho: "aprendido", ubic: store.get("ubic-primario", {}), pal: store.get("pal-primario", {}), codigos: store.get("codigos", {}) });
   const file = new File([txt], "aprendido-despacho.txt", { type: "text/plain" });
   try {
     if (navigator.canShare && navigator.canShare({ files: [file] })) return await navigator.share({ files: [file] });
@@ -242,6 +320,11 @@ $("apr-imp").onchange = async e => {
   d.codigos = Object.fromEntries(Object.entries(d.codigos || {}).filter(([, v]) => Array.isArray(v) && typeof v[1] === "string"));
   const nu = Object.keys(d.ubic).filter(k => !u[k]).length, nc = Object.keys(d.codigos).filter(k => !c[k]).length;
   store.set("ubic-primario", { ...u, ...d.ubic }); store.set("codigos", { ...c, ...d.codigos });
+  const pm = store.get("pal-primario", {});
+  for (const [k, v] of Object.entries(d.pal || {})) if (v && typeof v === "object") {
+    pm[k] = pm[k] || {}; for (const [p, n] of Object.entries(v)) if (+n > 0) pm[k][p] = Math.max(pm[k][p] || 0, +n);
+  }
+  store.set("pal-primario", pm);
   $("apr-note").textContent = `Listo: ${nu} ubicaciones y ${nc} equipos nuevos.`; $("apr-note").hidden = false;
   aprCuenta();
 };
@@ -250,11 +333,27 @@ $("apr-imp").onchange = async e => {
 function setModo(ia) {
   modoIA = ia;
   $("modo-lbl").textContent = ia ? "Con IA · " + (iaGet("ia-nombre") || "operador") : "Sin IA";
-  $("ia-turno").hidden = !ia;
+  $("ia-turno").hidden = !ia; if (ia) iaGastoVer(); else $("ia-gasto").hidden = true;
   iaQueda();
   $("home-tip").textContent = ia ? "Las fotos las lee la IA (necesita internet)." : "Toma la foto de cerca, con la fila de la llamada y el recuadro del Comentario visibles.";
 }
 // Cronómetro del turno: cuánto le queda a la contraseña. Al acabarse, la vuelve a pedir.
+// Cuánto cuesta cada foto (lo calcula el servidor con lo que cobra la IA) y cuánto va en el día
+function iaGasto(usd) {
+  const hoy = new Date().toLocaleDateString("es-EC");
+  let g = {}; try { g = JSON.parse(iaGet("ia-gasto")) || {}; } catch {}
+  if (g.dia !== hoy) g = { dia: hoy, fotos: 0, usd: 0 };
+  g.fotos++; g.usd += usd; g.ultima = usd;
+  iaPut("ia-gasto", JSON.stringify(g)); iaGastoVer();
+}
+const usdTxt = v => "US$ " + (v < 0.01 ? v.toFixed(4) : v.toFixed(2));
+function iaGastoVer() {
+  let g = null; try { g = JSON.parse(iaGet("ia-gasto")); } catch {}
+  const ok = g && g.dia === new Date().toLocaleDateString("es-EC") && g.fotos;
+  $("ia-gasto").hidden = !ok;
+  if (ok) $("ia-gasto").textContent = `Última foto: ${usdTxt(g.ultima)} · Hoy: ${g.fotos} fotos, ${usdTxt(g.usd)} (promedio ${usdTxt(g.usd / g.fotos)} por foto)`;
+}
+iaGastoVer();
 function iaQueda() {
   if (!modoIA) return;
   const m = Math.ceil((+iaGet("ia-hasta") - Date.now()) / 60e3);

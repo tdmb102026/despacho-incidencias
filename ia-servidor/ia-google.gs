@@ -7,6 +7,8 @@
 
 // Haiku: el más barato (unos 0,1 centavos de dólar por foto). Si lee mal, se puede cambiar a "claude-sonnet-5-5" (~1 centavo).
 const MODELO = "claude-haiku-5-5";
+// Precio de Claude Haiku 5.5 en dólares por millón de tokens (entrada, salida) para pedidos de hasta 100 mil tokens
+const PRECIO = { entrada: 0.10, salida: 0.50 };
 const HOJA = "Claves";
 const TITULOS = ["Contraseña", "Operador", "Activa (SI/NO)", "Fotos leídas", "Último uso"];
 
@@ -70,9 +72,9 @@ function aprendido_() {
   }
   return h;
 }
-// cosas: [{ t: "ubic" | "codigo", k, v }]. Si el dato ya está, se cambia lo que «Es»
+// cosas: [{ t: "ubic" | "codigo" | "pal", k, v }] («pal»: palabra del recuadro amarillo → «Pasa:3|Pelileo:1»). Si el dato ya está, se cambia lo que «Es»
 function aprender_(cosas, op) {
-  cosas = (cosas || []).filter(c => c && /^(ubic|codigo)$/.test(c.t) && c.k && c.v).slice(0, 200);
+  cosas = (cosas || []).filter(c => c && /^(ubic|codigo|pal)$/.test(c.t) && c.k && c.v).slice(0, 200);
   if (!cosas.length) return;
   const lock = LockService.getScriptLock(); lock.waitLock(10000);
   try {
@@ -88,7 +90,7 @@ function aprender_(cosas, op) {
   } finally { lock.releaseLock(); }
 }
 function bajar_() {
-  const h = aprendido_(), n = h.getLastRow() - 1, r = { ubic: {}, codigo: {} };
+  const h = aprendido_(), n = h.getLastRow() - 1, r = { ubic: {}, codigo: {}, pal: {} };
   if (n > 0) for (const [t, k, v] of h.getRange(2, 1, n, 3).getDisplayValues()) if (r[t] && k && v) r[t][k] = v;
   return r;
 }
@@ -162,7 +164,11 @@ function claude_(p, imagen) {
   if (j.stop_reason === "refusal") return { ok: false, error: "rechazo" };
   const t = (j.content || []).filter(b => b.type === "text")[0];
   if (!t) return { ok: false, error: "vacio" };
-  return { ok: true, datos: JSON.parse(t.text) };
+  // Costo de esta foto: lo que entra (foto + instrucciones) y lo que sale (incluye lo que la IA piensa)
+  const u = j.usage || {};
+  const ent = (u.input_tokens || 0) + (u.cache_creation_input_tokens || 0) + (u.cache_read_input_tokens || 0);
+  const costo = (ent * PRECIO.entrada + (u.output_tokens || 0) * PRECIO.salida) / 1e6;
+  return { ok: true, datos: JSON.parse(t.text), costo };
 }
 
 // ---------- aplicación web ----------
