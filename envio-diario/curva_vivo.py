@@ -30,7 +30,7 @@ from selenium.webdriver.common.keys import Keys
 import bosnis
 from bosnis import log, MESES, leer_claves, login_automatico, visibles
 
-VERSION = "curva en vivo v9"
+VERSION = "curva en vivo v10"
 AQUI = bosnis.AQUI
 PERFIL = os.path.join(AQUI, "perfil-curva")          # Chrome aparte: no choca con diario.bat
 URL_CURVAS = "http://172.20.18.45:666/curvas"
@@ -270,6 +270,7 @@ def escribir(driver, columna, desde, valores):
 def main():
     p = argparse.ArgumentParser()
     p.add_argument("--hasta", default="05:45", help="HH:MM (24:00 = fin del dia)")
+    p.add_argument("--desde", default="00:15", help="HH:MM primera hora que llena en la columna D")
     p.add_argument("--link")
     p.add_argument("--solo-leer", action="store_true")
     p.add_argument("--sin-referencia", action="store_true")
@@ -307,6 +308,10 @@ def main():
         return 1
     ultima_fila = fila_de(fecha_hoja, datetime.datetime.combine(fecha_hoja, datetime.time(0, 0))
                           + datetime.timedelta(hours=hh, minutes=mm)) or 97
+    dh, dm = [int(x) for x in a.desde.split(":")]
+    primera_fila = fila_de(fecha_hoja, datetime.datetime.combine(fecha_hoja, datetime.time(0, 0))
+                           + datetime.timedelta(hours=dh, minutes=dm)) or 2
+    log("Columna D: de las %s a las %s" % (a.desde, a.hasta))
     driver.execute_script("window.open('about:blank')")
     pest_dm = [h for h in driver.window_handles if h != pest_sheets][0]
     driver.switch_to.window(pest_dm)
@@ -344,7 +349,7 @@ def main():
             if not driver.execute_script("return document.querySelectorAll('.js-plotly-plot').length"):
                 entrar_demanda(driver)
             # la pagina carga las graficas de a poco: esperar hasta 60 s a que aparezca el dato nuevo
-            ya = max(escritas) if escritas else 1
+            ya = max(escritas) if escritas else primera_fila - 1
             for _ in range(12):
                 datos, nombres = datos_reales(driver, fecha_hoja)
                 if datos and max(datos) > ya:
@@ -360,7 +365,7 @@ def main():
             if datos and getattr(datos_reales, "elegida", "") != getattr(main, "ultima_linea", ""):
                 main.ultima_linea = datos_reales.elegida
                 log("Dato real desde: %s" % datos_reales.elegida)
-            pendientes = sorted(f for f in datos if f not in escritas and f <= ultima_fila)
+            pendientes = sorted(f for f in datos if f not in escritas and primera_fila <= f <= ultima_fila)
             if not datos:
                 log("Sin datos del %s todavia. Lineas vistas: %s" % (fecha_hoja.strftime("%d/%m"), "; ".join(nombres)))
             if pendientes:
