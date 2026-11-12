@@ -105,6 +105,15 @@ def tecla(vk, hwnd=None):
     time.sleep(0.15)
 
 
+def ctrl(vk, hwnd=None):
+    _frente_ok(hwnd)
+    _enviar(INPUT(INPUT_KEYBOARD, _U(ki=KEYBDINPUT(0x11, 0, 0, 0, None))),
+            INPUT(INPUT_KEYBOARD, _U(ki=KEYBDINPUT(vk, 0, 0, 0, None))),
+            INPUT(INPUT_KEYBOARD, _U(ki=KEYBDINPUT(vk, 0, KEYEVENTF_KEYUP, 0, None))),
+            INPUT(INPUT_KEYBOARD, _U(ki=KEYBDINPUT(0x11, 0, KEYEVENTF_KEYUP, 0, None))))
+    time.sleep(0.2)
+
+
 def escribir(texto, hwnd=None):
     for ch in texto:
         _frente_ok(hwnd)
@@ -257,8 +266,14 @@ def _descargar_con_tpl(fecha):
         raise RuntimeError("No aparecio la ventana de inicio del TPL.")
     al_frente(h)
     time.sleep(1)
+    time.sleep(1.5)
+    tecla(0x23, h)          # FIN: tecla de sacrificio (a veces Java se come la primera tecla)
+    time.sleep(0.5)
+    ctrl(0x41, h)           # Ctrl+A: seleccionar lo que haya en el campo usuario
     escribir(claves["usuario"], h)
     tecla(VK_TAB, h)
+    time.sleep(0.3)
+    ctrl(0x41, h)
     escribir(claves.get("clave", ""), h)
     tecla(VK_RETURN, h)
 
@@ -494,7 +509,7 @@ def main():
     if not os.path.isdir(bosnis.CARPETA_LOG):
         os.makedirs(bosnis.CARPETA_LOG)
     bosnis._log_file = open(os.path.join(bosnis.CARPETA_LOG, "tpl_%s.txt" % fecha.strftime("%Y-%m-%d")), "a")
-    log("==== TPL v8 %s %s %s====" % (a.accion, fecha, "(PRUEBA) " if a.prueba else ""))
+    log("==== TPL v9 %s %s %s====" % (a.accion, fecha, "(PRUEBA) " if a.prueba else ""))
 
     driver = None
     errores = 0
