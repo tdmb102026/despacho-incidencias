@@ -154,6 +154,8 @@ def esperar_ventana(parte_titulo, segundos):
 
 def al_frente(hwnd):
     """Pone la ventana al frente y COMPRUEBA que quedo al frente (si no, no se escribe nada)."""
+    if (user32.GetForegroundWindow() or 0) == hwnd:
+        return                                   # ya esta al frente: no tocar nada
     for _ in range(6):
         user32.ShowWindow(hwnd, SW_RESTORE)
         # truco de Windows: soltar una tecla ALT deja cambiar la ventana del frente
