@@ -31,6 +31,23 @@ from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import Select, WebDriverWait
 
+def quitar_edicion_rapida():
+    """En la ventana negra, un clic activa 'Seleccionar' y PAUSA el programa. Esto lo desactiva
+    (pegar con clic derecho > Pegar sigue funcionando)."""
+    try:
+        import ctypes
+        k = ctypes.windll.kernel32
+        h = k.GetStdHandle(-10)
+        modo = ctypes.c_uint()
+        if k.GetConsoleMode(h, ctypes.byref(modo)):
+            k.SetConsoleMode(h, (modo.value & ~0x40) | 0x80)
+    except Exception:
+        pass
+
+
+quitar_edicion_rapida()
+
+
 # ---------------------------------------------------------------- configuracion
 AQUI = os.path.dirname(os.path.abspath(__file__))
 

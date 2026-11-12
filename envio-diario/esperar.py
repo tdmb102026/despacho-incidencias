@@ -1,6 +1,15 @@
 # -*- coding: utf-8 -*-
 """Espera hasta la hora indicada (por defecto 01:00) antes del envio diario. Uso: python esperar.py 01:00"""
 import datetime, sys, time
+try:
+    import ctypes
+    _k = ctypes.windll.kernel32
+    _h = _k.GetStdHandle(-10)
+    _m = ctypes.c_uint()
+    if _k.GetConsoleMode(_h, ctypes.byref(_m)):
+        _k.SetConsoleMode(_h, (_m.value & ~0x40) | 0x80)
+except Exception:
+    pass
 hh, mm = [int(x) for x in (sys.argv[1] if len(sys.argv) > 1 else "01:00").split(":")]
 ahora = datetime.datetime.now()
 meta = ahora.replace(hour=hh, minute=mm, second=0, microsecond=0)
