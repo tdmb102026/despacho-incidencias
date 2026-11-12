@@ -236,6 +236,13 @@ CANDADO = os.path.join(bosnis.AQUI, "tpl-usando-teclado.lock")   # la curva en v
 
 
 def descargar_con_tpl(fecha):
+    otro = os.path.join(bosnis.AQUI, "curva-escribiendo.lock")
+    avisado = False
+    while os.path.isfile(otro) and time.time() - os.path.getmtime(otro) < 10 * 60:
+        if not avisado:
+            log("La curva esta escribiendo en el Sheets: espero a que termine para usar el teclado.")
+            avisado = True
+        time.sleep(5)
     open(CANDADO, "w").write(str(time.time()))
     try:
         return _descargar_con_tpl(fecha)

@@ -251,6 +251,18 @@ def entrar_sheets(driver, link):
 
 
 def escribir(driver, columna, desde, valores):
+    candado = os.path.join(AQUI, "curva-escribiendo.lock")      # el TPL espera mientras exista
+    open(candado, "w").write(str(time.time()))
+    try:
+        _escribir(driver, columna, desde, valores)
+    finally:
+        try:
+            os.remove(candado)
+        except OSError:
+            pass
+
+
+def _escribir(driver, columna, desde, valores):
     """Escribe una lista de textos hacia abajo empezando en columna+desde (pestana 01_EEASA_AMBATO)."""
     caja = visibles(driver, "#t-name-box, input.waffle-name-box")[0]
     caja.click()
