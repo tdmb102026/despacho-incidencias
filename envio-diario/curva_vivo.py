@@ -286,6 +286,7 @@ def main():
     p.add_argument("--link")
     p.add_argument("--solo-leer", action="store_true")
     p.add_argument("--sin-referencia", action="store_true")
+    p.add_argument("--una-vez", action="store_true", help="llena hasta la hora actual y termina")
     a = p.parse_args()
 
     if not os.path.isdir(bosnis.CARPETA_LOG):
@@ -400,6 +401,9 @@ def main():
                         escribir(driver, "D", desde, textos)
                 escritas.update(f for f in range(desde, hasta + 1) if f in datos)
             if ultima_fila in escritas or datetime.datetime.now() > fin_total:
+                break
+            if a.una_vez and datos:
+                log("Relleno hasta la hora actual listo.")
                 break
         except Exception:
             e = sys.exc_info()[1]
