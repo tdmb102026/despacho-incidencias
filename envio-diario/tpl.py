@@ -59,6 +59,13 @@ RAIZ_CAPTURAS = r"C:\Users\Operadores CECON\Desktop\Errores\Capturas  SIMEC"   #
 
 # ---------------------------------------------------------------- Windows (ctypes, sin instalar nada)
 user32 = ctypes.windll.user32 if os.name == "nt" else None
+if user32:
+    from ctypes import wintypes as _wt
+    user32.GetForegroundWindow.restype = _wt.HWND
+    user32.WindowFromPoint.restype = _wt.HWND
+    user32.WindowFromPoint.argtypes = [_wt.POINT]
+    user32.GetAncestor.restype = _wt.HWND
+    user32.GetAncestor.argtypes = [_wt.HWND, ctypes.c_uint]
 
 INPUT_MOUSE, INPUT_KEYBOARD = 0, 1
 KEYEVENTF_KEYUP, KEYEVENTF_UNICODE = 0x0002, 0x0004
@@ -91,23 +98,29 @@ def _enviar(*entradas):
     user32.SendInput(len(entradas), arr, ctypes.sizeof(INPUT))
 
 
-def tecla(vk):
+def tecla(vk, hwnd=None):
+    _frente_ok(hwnd)
     _enviar(INPUT(INPUT_KEYBOARD, _U(ki=KEYBDINPUT(vk, 0, 0, 0, None))),
             INPUT(INPUT_KEYBOARD, _U(ki=KEYBDINPUT(vk, 0, KEYEVENTF_KEYUP, 0, None))))
     time.sleep(0.15)
 
 
-def escribir(texto):
+def escribir(texto, hwnd=None):
     for ch in texto:
+        _frente_ok(hwnd)
         c = ord(ch)
         _enviar(INPUT(INPUT_KEYBOARD, _U(ki=KEYBDINPUT(0, c, KEYEVENTF_UNICODE, 0, None))),
                 INPUT(INPUT_KEYBOARD, _U(ki=KEYBDINPUT(0, c, KEYEVENTF_UNICODE | KEYEVENTF_KEYUP, 0, None))))
         time.sleep(0.05)
 
 
-def clic(x, y):
+def clic(x, y, hwnd=None):
+    _frente_ok(hwnd)
     user32.SetCursorPos(int(x), int(y))
     time.sleep(0.2)
+    debajo = user32.WindowFromPoint(wintypes.POINT(int(x), int(y))) if hwnd else None
+    if debajo and user32.GetAncestor(debajo, 2) != hwnd:
+        raise RuntimeError("En ese punto hay otra ventana encima del TPL. Paro para no hacer clic donde no es.")
     _enviar(INPUT(INPUT_MOUSE, _U(mi=MOUSEINPUT(0, 0, 0, MOUSEEVENTF_LEFTDOWN, 0, None))),
             INPUT(INPUT_MOUSE, _U(mi=MOUSEINPUT(0, 0, 0, MOUSEEVENTF_LEFTUP, 0, None))))
     time.sleep(0.5)
@@ -140,9 +153,23 @@ def esperar_ventana(parte_titulo, segundos):
 
 
 def al_frente(hwnd):
-    user32.ShowWindow(hwnd, SW_RESTORE)
-    user32.SetForegroundWindow(hwnd)
-    time.sleep(1)
+    """Pone la ventana al frente y COMPRUEBA que quedo al frente (si no, no se escribe nada)."""
+    for _ in range(6):
+        user32.ShowWindow(hwnd, SW_RESTORE)
+        # truco de Windows: soltar una tecla ALT deja cambiar la ventana del frente
+        _enviar(INPUT(INPUT_KEYBOARD, _U(ki=KEYBDINPUT(0x12, 0, 0, 0, None))),
+                INPUT(INPUT_KEYBOARD, _U(ki=KEYBDINPUT(0x12, 0, KEYEVENTF_KEYUP, 0, None))))
+        user32.BringWindowToTop(hwnd)
+        user32.SetForegroundWindow(hwnd)
+        time.sleep(1)
+        if (user32.GetForegroundWindow() or 0) == hwnd:
+            return
+    raise RuntimeError("No pude poner la ventana del TPL al frente. No escribo nada para no escribir en otra ventana.")
+
+
+def _frente_ok(hwnd):
+    if hwnd and (user32.GetForegroundWindow() or 0) != hwnd:
+        raise RuntimeError("Otra ventana se puso al frente del TPL. Paro para no escribir/hacer clic donde no es.")
 
 
 def rect(hwnd):
@@ -194,7 +221,21 @@ def zips_listos(fecha):
     return faltan
 
 
+CANDADO = os.path.join(bosnis.AQUI, "tpl-usando-teclado.lock")   # la curva en vivo espera mientras exista
+
+
 def descargar_con_tpl(fecha):
+    open(CANDADO, "w").write(str(time.time()))
+    try:
+        return _descargar_con_tpl(fecha)
+    finally:
+        try:
+            os.remove(CANDADO)
+        except OSError:
+            pass
+
+
+def _descargar_con_tpl(fecha):
     claves = leer_claves("tpl")
     if not claves.get("usuario"):
         raise RuntimeError("Faltan usuario/clave del TPL: corre configurar.bat")
@@ -214,10 +255,10 @@ def descargar_con_tpl(fecha):
         raise RuntimeError("No aparecio la ventana de inicio del TPL.")
     al_frente(h)
     time.sleep(1)
-    escribir(claves["usuario"])
-    tecla(VK_TAB)
-    escribir(claves.get("clave", ""))
-    tecla(VK_RETURN)
+    escribir(claves["usuario"], h)
+    tecla(VK_TAB, h)
+    escribir(claves.get("clave", ""), h)
+    tecla(VK_RETURN, h)
 
     h = esperar_ventana(TITULO_PRINCIPAL, 90)
     if not h:
@@ -231,24 +272,25 @@ def descargar_con_tpl(fecha):
     if casilla_marcada(cx, cy):
         log("   'Seleccionar todo' ya estaba marcada")
     else:
-        clic(cx, cy)
+        clic(cx, cy, h)
         time.sleep(1)
         if casilla_marcada(cx, cy) is False:
             log("   OJO: no veo marcada 'Seleccionar todo', reintento")
-            clic(cx, cy)
+            clic(cx, cy, h)
     log("   descarga: clic en el icono verde")
-    clic(izq + ICONO_DESCARGA[0], arriba + ICONO_DESCARGA[1])
+    clic(izq + ICONO_DESCARGA[0], arriba + ICONO_DESCARGA[1], h)
 
     d = esperar_ventana(TITULO_LLAMADA, 30)
     if d:
         al_frente(d)
         log("   dialogo 'Se recuperaran datos desde el dia...': Aceptar")
-        tecla(VK_RETURN)
+        tecla(VK_RETURN, d)
         time.sleep(2)
         d = buscar_ventana(TITULO_LLAMADA)
         if d:
             l, t, _, _ = rect(d)
-            clic(l + ACEPTAR_LLAMADA[0], t + ACEPTAR_LLAMADA[1])
+            al_frente(d)
+            clic(l + ACEPTAR_LLAMADA[0], t + ACEPTAR_LLAMADA[1], d)
             time.sleep(2)
         if buscar_ventana(TITULO_LLAMADA):
             raise RuntimeError("No pude apretar Aceptar en el dialogo de fechas del TPL.")
@@ -269,7 +311,7 @@ def descargar_con_tpl(fecha):
             r = esperar_ventana(TITULO_RESULTADOS, 60)
             if r:
                 al_frente(r)
-                tecla(VK_RETURN)
+                tecla(VK_RETURN, r)
                 time.sleep(2)
                 if buscar_ventana(TITULO_RESULTADOS):
                     user32.PostMessageW(buscar_ventana(TITULO_RESULTADOS), WM_CLOSE, 0, 0)
@@ -450,7 +492,7 @@ def main():
     if not os.path.isdir(bosnis.CARPETA_LOG):
         os.makedirs(bosnis.CARPETA_LOG)
     bosnis._log_file = open(os.path.join(bosnis.CARPETA_LOG, "tpl_%s.txt" % fecha.strftime("%Y-%m-%d")), "a")
-    log("==== TPL v7 %s %s %s====" % (a.accion, fecha, "(PRUEBA) " if a.prueba else ""))
+    log("==== TPL v8 %s %s %s====" % (a.accion, fecha, "(PRUEBA) " if a.prueba else ""))
 
     driver = None
     errores = 0

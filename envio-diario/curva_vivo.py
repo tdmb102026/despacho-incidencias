@@ -342,6 +342,14 @@ def main():
                     break
                 time.sleep(30)
                 continue
+        candado = os.path.join(AQUI, "tpl-usando-teclado.lock")
+        if os.path.isfile(candado) and time.time() - os.path.getmtime(candado) < 20 * 60:
+            if not getattr(main, "aviso_tpl", False):
+                log("El TPL esta usando el teclado y el mouse: la curva espera para no estorbar.")
+                main.aviso_tpl = True
+            time.sleep(20)
+            continue
+        main.aviso_tpl = False
         try:
             driver.switch_to.window(pest_dm)
             driver.refresh()
