@@ -82,7 +82,31 @@ function iaPrims(out) {
   const learned = ubic ? iaUbicPri(ubic) : "";
   const found = parseOCR(ubic + "\n" + com, com).prims;
   // Lo aprendido del recuadro amarillo va al final: solo decide si lo demás no dio nada
-  return [learned, out.primario, ...found, iaComPri(com)].map(v => v && priName(v)).filter((v, i, l) => v && l.indexOf(v) === i);
+  return [conAlim() ? alimFila(out.alim_fila) : "", learned, out.primario, ...found, iaComPri(com)].map(v => v && priName(v)).filter((v, i, l) => v && l.indexOf(v) === i);
+}
+// ---------- Columna «Alimentador actual» del Navegador de incidencias ----------
+// La fila resaltada viene como «01_02_Pinllo» o cortada («_02_Pin»): el número es la subestación
+// y las primeras letras bastan para saber cuál de sus alimentadores es.
+const conAlim = () => { try { return localStorage.getItem("con-alim") === "con"; } catch { return false; } };
+const SE_NUM = { 1: "Samanga", 2: "Atocha", 3: "Península", 4: "Oriente", 5: "Loreto", 6: "Montalvo", 7: "Huachi", 8: "Quero", 9: "Pelileo",
+  10: "Píllaro", 11: "Baños", 12: "Puyo 1", 13: "Mushullacta", 14: "Tena", 15: "Totoras", 16: "Puyo 2", 17: "Tena Norte", 18: "Agoyán",
+  19: "Batán", 20: "Pilahuín", 21: "Ahuano" };
+function alimFila(txt) {
+  const m = String(txt || "").match(/(\d{1,2})\s*_+\s*([^_\d][^_]*)$/);
+  if (!m) return "";
+  const pre = squash(m[2]);
+  if (pre.length < 2) return "";
+  const se = squash(SE_NUM[+m[1]] || "");
+  // «La Pradera» también se busca como «Pradera»
+  const formas = p => [p.k, squash(p.name.replace(/^(LA|EL|LOS|LAS)\s+/i, ""))];
+  const cabe = p => formas(p).some(f => f.startsWith(pre) || (pre.length > f.length && pre.startsWith(f)));
+  let c = PRIS.filter(cabe);
+  // con errores de lectura: el que más se parece al mismo largo
+  if (!c.length) c = PRIS.filter(p => pre.length >= 4 && formas(p).some(f => parecido(sonido(f.slice(0, pre.length)), sonido(pre)) >= 0.8));
+  const enSE = c.filter(p => p.ks === se);
+  if (enSE.length) c = enSE;
+  const nombres = [...new Set(c.map(p => p.name))];
+  return nombres.length === 1 ? nombres[0] : "";
 }
 // El callcenter escribe la misma ubicación de muchas formas («ULBA BANOS», «ulba-baños», «ULBA BAÑOS SECTOR…»):
 // si no está igual, se toma la aprendida que más se parece o que la contiene
@@ -203,7 +227,7 @@ function iaBajar(apr) {
 $("share").addEventListener("click", iaLearn);
 $("copy").addEventListener("click", iaLearn);
 async function iaReadInc(file, signal) {
-  const { out, canvas } = await iaRead(file, "inc", { motivos: MOTIVOS.map(m => m[0]), primarios: ALIM.map(a => a[1]) }, signal);
+  const { out, canvas } = await iaRead(file, "inc", { motivos: MOTIVOS.map(m => m[0]), primarios: ALIM.map(a => a[1]), alim: conAlim() }, signal);
   const six = d => String(d).replace(/\D/g, "").slice(-6);
   const tabs = (out.pestanas || []).map(six).filter(d => d.length === 6);
   const inc = six(out.activa || "") || tabs.at(-1) || "";
@@ -335,7 +359,7 @@ function setModo(ia) {
   $("modo-lbl").textContent = ia ? "Con IA · " + (iaGet("ia-nombre") || "operador") : "Sin IA";
   $("ia-turno").hidden = !ia; if (ia) iaGastoVer(); else $("ia-gasto").hidden = true;
   iaQueda();
-  $("home-tip").textContent = ia ? "Las fotos las lee la IA (necesita internet)." : "Toma la foto de cerca, con la fila de la llamada y el recuadro del Comentario visibles.";
+  $("home-tip").textContent = ia ? "Las fotos las lee la IA (necesita internet)." + (conAlim() ? " Incluye a la izquierda la columna de alimentadores con la fila resaltada." : "") : "Toma la foto de cerca, con la fila de la llamada y el recuadro del Comentario visibles.";
 }
 // Cronómetro del turno: cuánto le queda a la contraseña. Al acabarse, la vuelve a pedir.
 // Cuánto cuesta cada foto (lo calcula el servidor con lo que cobra la IA) y cuánto va en el día

@@ -99,11 +99,15 @@ function bajar_() {
 const SIS_INC = `Lees fotos tomadas con un celular a la pantalla del ADMS de EEASA (Ambato, Ecuador), módulo "Gestión de incidencias".
 La pantalla puede tener trama (moiré), reflejos o estar inclinada o girada: lee con cuidado cada dígito y no inventes. Si un dato no se ve, déjalo vacío.
 - Arriba hay pestañas con incidencias "INC 110315xxxxx" (11 dígitos). La pestaña activa es la que se ve seleccionada (resaltada o con su contenido abajo).
-- En la tabla de llamadas, la fila de la llamada tiene fecha, motivo (p. ej. "Sector sin servicio") y la ubicación.
+- En la tabla de llamadas, la fila de la llamada tiene motivo (p. ej. "Sector sin servicio"), nombre, cuenta, medidor y ubicación. La fecha puede estar al final de la fila o no verse.
 - El recuadro amarillo "Comentario" trae la dirección, el teléfono del cliente (TELF, CEL…: 10 dígitos que empiezan con 09) y el texto del cliente.
 - La columna "Ubicación" de la fila de la llamada trae el sector o barrio (p. ej. "HUANTUGSUMO PELILEO - HUANTUGSUMO"): cópiala tal cual.
 - El primario es el alimentador de la incidencia. Solo llénalo si en la pantalla se lee el nombre de un alimentador de la lista
   (p. ej. "Alimentador actual: 01_09_Huambaló" → Huambaló). No lo deduzcas del nombre de una ciudad, barrio o calle: si no se lee, deja "".`;
+// Solo si el operador eligió «Con alimentadores»
+const SIS_ALIM = `
+- A la izquierda puede verse la columna "Alimentador actual" del Navegador de incidencias, con filas como "01_02_Pinllo" (a veces cortadas: "_02_Pin").
+  La fila de la incidencia es la que está resaltada (fondo gris o seleccionada). Copia esa fila tal cual en alim_fila, con su número; si no hay ninguna resaltada, deja "".`;
 const SIS_FAL = `Lees fotos tomadas con un celular a pantallas del SCADA/ADMS de EEASA (Ambato, Ecuador) para llenar la bitácora de fallas internas.
 La pantalla puede tener trama (moiré), reflejos o estar inclinada o girada: lee con cuidado cada dígito, coma y punto, y no inventes. Si un dato no se ve, déjalo vacío.
 Las fechas van como dd/mm/aaaa hh:mm:ss (sin milisegundos).`;
@@ -113,14 +117,15 @@ const ACTIVA = { type: "string", description: "Número de 11 dígitos de la pest
 const lista_ = l => (Array.isArray(l) ? l : []).map(String).filter(s => s.length < 60).slice(0, 400);
 
 function pedido_(tipo, listas) {
-  if (tipo === "inc") return { sistema: SIS_INC, texto: "Lee esta foto de Gestión de incidencias.", esquema: obj_({
+  if (tipo === "inc") { const con = listas.alim === true; return { sistema: SIS_INC + (con ? SIS_ALIM : ""), texto: "Lee esta foto de Gestión de incidencias.", esquema: obj_(Object.assign({
     pestanas: PESTANAS, activa: ACTIVA,
     motivo: { type: "string", enum: lista_(listas.motivos).concat([""]) },
     ubicacion: { type: "string", description: "Texto de la columna Ubicación de la fila de la llamada" },
     comentario: { type: "string", description: "Texto del recuadro amarillo Comentario" },
     primario: { type: "string", enum: lista_(listas.primarios).concat([""]) },
     telefonos: { type: "array", items: { type: "string" }, description: "Teléfonos del cliente, 10 dígitos, el más probable primero" },
-    giro: { type: "integer", enum: [0, 90, 180, 270], description: "Grados en sentido horario para que la pantalla quede derecha" } }) };
+    giro: { type: "integer", enum: [0, 90, 180, 270], description: "Grados en sentido horario para que la pantalla quede derecha" } },
+    con ? { alim_fila: { type: "string", description: "Fila resaltada de la columna Alimentador actual, tal cual (p. ej. \"_02_Pinllo\")" } } : {})) }; }
   if (tipo === "fal1") return { sistema: SIS_FAL, esquema: obj_({ pestanas: PESTANAS, activa: ACTIVA, clientes: { type: "string", description: "Clientes afectados, solo dígitos" } }),
     texto: `Foto de "Gestión de incidencias". Arriba hay pestañas "INC 110315xxxxx" (11 dígitos); la activa es la seleccionada. "Clientes afectados" es un número entero.` };
   if (tipo === "fal2") return { sistema: SIS_FAL, esquema: obj_({
