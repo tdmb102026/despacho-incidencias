@@ -24,14 +24,15 @@ import bosnis
 from bosnis import log, MESES, carpeta_existente, leer_claves, visibles, abrir_chrome
 from selenium.webdriver.common.keys import Keys
 
-VERSION = "demanda v3"
+VERSION = "demanda v4"
 AQUI = bosnis.AQUI
 RAIZ_PARTES = r"D:\PARTES OPERACION CECON\MisDocumentos\excel\PARTES {Y}"
 CARPETA_CURVAS = "DEMANDA EEASA CCND {Y}"            # dentro de PARTES {Y}, luego carpeta del MES
 NOMBRE_CURVA = "Formato curva de carga EEASA %02d_%02d_ %d"
 CARPETA_PRUEBAS = os.path.join(AQUI, "pruebas")
 
-URL_OUTLOOK = "https://outlook.office.com/mail/"
+URL_OUTLOOK = "https://outlook.cloud.microsoft/mail/"
+URLS_OUTLOOK = [URL_OUTLOOK, "https://outlook.office.com/mail/", "https://outlook.office365.com/mail/"]
 PARA = ["ccnd@redenergia.gob.ec"]
 CC = ["cguato@eeasa.com.ec", "dgutierrez@eeasa.com.ec"]
 ASUNTO = "Demanda EEASA"
@@ -167,11 +168,36 @@ def login_microsoft(driver, claves):
 
 
 def entrar_outlook(driver):
-    driver.get(URL_OUTLOOK)
-    time.sleep(6)
-    fin = time.time() + 300
+    # El .75 a veces tarda mucho o da ERR_TIMED_OUT: se reintenta con varias
+    # direcciones de Outlook durante 15 minutos.
+    try:
+        driver.set_page_load_timeout(120)
+    except Exception:
+        pass
+    fin = time.time() + 900
     aviso = False
+    intento = 0
+    proxima_carga = 0
     while time.time() < fin:
+        if time.time() >= proxima_carga:
+            url = URLS_OUTLOOK[intento % len(URLS_OUTLOOK)]
+            intento += 1
+            log("Abriendo Outlook (%d): %s" % (intento, url))
+            try:
+                driver.get(url)
+            except Exception:
+                log("Outlook tarda en cargar, sigo esperando...")
+            proxima_carga = time.time() + 180
+            time.sleep(6)
+        try:
+            txt = driver.execute_script("return document.body ? document.body.innerText : ''") or ""
+        except Exception:
+            txt = ""
+        if "ERR_TIMED_OUT" in txt or "No se puede acceder" in txt or "can't be reached" in txt:
+            log("Outlook no responde (tiempo agotado), reintento...")
+            proxima_carga = 0
+            time.sleep(5)
+            continue
         if boton_texto(driver, ["correo nuevo", "new mail", "nuevo correo"]):
             return
         try:
@@ -179,7 +205,7 @@ def entrar_outlook(driver):
         except Exception:
             pass
         if not aviso:
-            log("Outlook: si pide iniciar sesion, entra en la ventana de Chrome (5 minutos) y marca 'mantener sesion'.")
+            log("Outlook: si pide iniciar sesion, entra en la ventana de Chrome (15 minutos) y marca 'mantener sesion'.")
             aviso = True
         time.sleep(3)
     raise RuntimeError("No se pudo entrar a Outlook.")
