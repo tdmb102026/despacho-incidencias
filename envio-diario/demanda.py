@@ -24,7 +24,7 @@ import bosnis
 from bosnis import log, MESES, carpeta_existente, leer_claves, visibles, abrir_chrome
 from selenium.webdriver.common.keys import Keys
 
-VERSION = "demanda v5"
+VERSION = "demanda v6"
 AQUI = bosnis.AQUI
 RAIZ_PARTES = r"D:\PARTES OPERACION CECON\MisDocumentos\excel\PARTES {Y}"
 CARPETA_CURVAS = "DEMANDA EEASA CCND {Y}"            # dentro de PARTES {Y}, luego carpeta del MES
@@ -441,8 +441,11 @@ def main():
             archivo = hacer_curva(fecha, a.prueba)
         if a.que in ("correo", "todo"):
             if not archivo:
-                archivo = (os.path.join(CARPETA_PRUEBAS, os.path.basename(ruta_curva(fecha))) if a.prueba
-                           else curva_existente(fecha))
+                archivo = curva_existente(fecha)
+                if a.prueba:
+                    p = os.path.join(CARPETA_PRUEBAS, os.path.basename(ruta_curva(fecha)))
+                    if os.path.isfile(p):
+                        archivo = p
                 if not archivo or not os.path.isfile(archivo):
                     raise RuntimeError("No existe la curva del dia; corre primero: demanda.py curva")
             if not mandar_correo(fecha, archivo, a.prueba):
