@@ -30,7 +30,7 @@ from selenium.webdriver.common.keys import Keys
 import bosnis
 from bosnis import log, MESES, leer_claves, login_automatico, visibles
 
-VERSION = "curva en vivo v10"
+VERSION = "curva en vivo v11"
 AQUI = bosnis.AQUI
 PERFIL = os.path.join(AQUI, "perfil-curva")          # Chrome aparte: no choca con diario.bat
 URL_CURVAS = "http://172.20.18.45:666/curvas"
@@ -262,6 +262,16 @@ def escribir(driver, columna, desde, valores):
             pass
 
 
+def borrar(driver, rango):
+    caja = visibles(driver, "#t-name-box, input.waffle-name-box")[0]
+    caja.click()
+    caja.send_keys(Keys.CONTROL, "a")
+    caja.send_keys("'%s'!%s" % (PESTANA, rango) + Keys.ENTER)
+    time.sleep(1.5)
+    ActionChains(driver).send_keys(Keys.DELETE).perform()
+    time.sleep(2)
+
+
 def _escribir(driver, columna, desde, valores):
     """Escribe una lista de textos hacia abajo empezando en columna+desde (pestana 01_EEASA_AMBATO)."""
     caja = visibles(driver, "#t-name-box, input.waffle-name-box")[0]
@@ -339,6 +349,13 @@ def main():
                 driver.switch_to.window(pest_sheets)
                 escribir(driver, "C", 2, textos)
                 log("Columna C lista.")
+                # fechas de los encabezados (AAAA-MM-DD: Sheets lo entiende siempre y lo muestra con su formato)
+                escribir(driver, "C", 1, [ref.strftime("%Y-%m-%d")])
+                escribir(driver, "D", 1, [fecha_hoja.strftime("%Y-%m-%d")])
+                log("Fechas: C1 = %s, D1 = %s" % (ref.strftime("%d/%m/%Y"), fecha_hoja.strftime("%d/%m/%Y")))
+                # el archivo nuevo viene con la D llena de datos viejos: borrarla toda antes de llenar
+                borrar(driver, "D2:D97")
+                log("Columna D vaciada (D2 a D97), se llena con los datos de hoy.")
         except Exception as e:
             log("OJO columna C: %s" % e)
 
