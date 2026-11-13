@@ -24,7 +24,7 @@ import bosnis
 from bosnis import log, MESES, carpeta_existente, leer_claves, visibles, abrir_chrome
 from selenium.webdriver.common.keys import Keys
 
-VERSION = "demanda v4"
+VERSION = "demanda v5"
 AQUI = bosnis.AQUI
 RAIZ_PARTES = r"D:\PARTES OPERACION CECON\MisDocumentos\excel\PARTES {Y}"
 CARPETA_CURVAS = "DEMANDA EEASA CCND {Y}"            # dentro de PARTES {Y}, luego carpeta del MES
@@ -197,6 +197,20 @@ def entrar_outlook(driver):
             log("Outlook no responde (tiempo agotado), reintento...")
             proxima_carga = 0
             time.sleep(5)
+            continue
+        bajo = txt.lower()
+        if ("something went wrong" in bajo or "algo sali" in bajo) and ("refresh" in bajo or "actualizar" in bajo):
+            log("Outlook dio error de red al cargar, pulso 'Refresh/Actualizar'...")
+            boton = boton_texto(driver, ["refresh the application", "actualizar la aplic", "refresh", "actualizar"])
+            try:
+                if boton:
+                    boton.click()
+                else:
+                    driver.refresh()
+            except Exception:
+                pass
+            proxima_carga = time.time() + 180
+            time.sleep(15)
             continue
         if boton_texto(driver, ["correo nuevo", "new mail", "nuevo correo"]):
             return
