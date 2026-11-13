@@ -82,7 +82,11 @@ function iaPrims(out) {
   const learned = ubic ? iaUbicPri(ubic) : "";
   const found = parseOCR(ubic + "\n" + com, com).prims;
   // Lo aprendido del recuadro amarillo va al final: solo decide si lo demás no dio nada
-  return [conAlim() ? alimFila(out.alim_fila) : "", learned, out.primario, ...found, iaComPri(com)].map(v => v && priName(v)).filter((v, i, l) => v && l.indexOf(v) === i);
+  const resto = [learned, out.primario, ...found, iaComPri(com)].map(v => v && priName(v));
+  // Si la columna deja dudas («_10_SA»: San Andrés, San Miguelito…), decide lo que se leyó en el resto de la foto
+  const cands = conAlim() ? alimFila(out.alim_fila) : [];
+  const fila = cands.length === 1 ? cands[0] : resto.find(v => v && cands.includes(v)) || "";
+  return [fila, ...resto].filter((v, i, l) => v && l.indexOf(v) === i);
 }
 // ---------- Columna «Alimentador actual» del Navegador de incidencias ----------
 // La fila resaltada viene como «01_02_Pinllo» o cortada («_02_Pin»): el número es la subestación
@@ -93,9 +97,9 @@ const SE_NUM = { 1: "Samanga", 2: "Atocha", 3: "Península", 4: "Oriente", 5: "L
   19: "Batán", 20: "Pilahuín", 21: "Ahuano" };
 function alimFila(txt) {
   const m = String(txt || "").match(/(\d{1,2})\s*_+\s*([^_\d][^_]*)$/);
-  if (!m) return "";
+  if (!m) return [];
   const pre = squash(m[2]);
-  if (pre.length < 2) return "";
+  if (pre.length < 2) return [];
   const se = squash(SE_NUM[+m[1]] || "");
   // «La Pradera» también se busca como «Pradera»
   const formas = p => [p.k, squash(p.name.replace(/^(LA|EL|LOS|LAS)\s+/i, ""))];
@@ -105,8 +109,7 @@ function alimFila(txt) {
   if (!c.length) c = PRIS.filter(p => pre.length >= 4 && formas(p).some(f => parecido(sonido(f.slice(0, pre.length)), sonido(pre)) >= 0.8));
   const enSE = c.filter(p => p.ks === se);
   if (enSE.length) c = enSE;
-  const nombres = [...new Set(c.map(p => p.name))];
-  return nombres.length === 1 ? nombres[0] : "";
+  return [...new Set(c.map(p => p.name))];
 }
 // El callcenter escribe la misma ubicación de muchas formas («ULBA BANOS», «ulba-baños», «ULBA BAÑOS SECTOR…»):
 // si no está igual, se toma la aprendida que más se parece o que la contiene
