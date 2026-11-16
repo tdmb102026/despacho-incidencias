@@ -243,7 +243,7 @@ def descargar_con_tpl(fecha):
             log("La curva esta escribiendo en el Sheets: espero a que termine para usar el teclado.")
             avisado = True
         time.sleep(5)
-    open(CANDADO, "w").write(str(time.time()))
+    open(CANDADO, "w").write(str(os.getpid()))
     try:
         return _descargar_con_tpl(fecha)
     finally:

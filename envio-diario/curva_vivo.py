@@ -30,7 +30,7 @@ from selenium.webdriver.common.keys import Keys
 import bosnis
 from bosnis import log, MESES, leer_claves, login_automatico, visibles
 
-VERSION = "curva en vivo v11"
+VERSION = "curva en vivo v12"
 AQUI = bosnis.AQUI
 PERFIL = os.path.join(AQUI, "perfil-curva")          # Chrome aparte: no choca con diario.bat
 URL_CURVAS = "http://172.20.18.45:666/curvas"
@@ -289,6 +289,39 @@ def _escribir(driver, columna, desde, valores):
 
 
 # ---------------------------------------------------------------- main
+
+def candado_vivo(ruta):
+    """True solo si el TPL que creo el candado sigue corriendo (si se cerro la ventana, el candado queda viejo y se borra)."""
+    if not os.path.isfile(ruta):
+        return False
+    if time.time() - os.path.getmtime(ruta) > 20 * 60:
+        return False
+    try:
+        pid = int(open(ruta).read().strip())
+    except Exception:
+        return True
+    vivo = True
+    try:
+        import ctypes
+        k = ctypes.windll.kernel32
+        h = k.OpenProcess(0x1000, False, pid)   # PROCESS_QUERY_LIMITED_INFORMATION
+        if not h:
+            vivo = False
+        else:
+            codigo = ctypes.c_ulong()
+            k.GetExitCodeProcess(h, ctypes.byref(codigo))
+            k.CloseHandle(h)
+            vivo = codigo.value == 259           # STILL_ACTIVE
+    except Exception:
+        return True
+    if not vivo:
+        log("Habia un aviso viejo del TPL (ya no esta corriendo): lo borro y sigo.")
+        try:
+            os.remove(ruta)
+        except OSError:
+            pass
+    return vivo
+
 def main():
     p = argparse.ArgumentParser()
     p.add_argument("--hasta", default="05:45", help="HH:MM (24:00 = fin del dia)")
@@ -373,7 +406,7 @@ def main():
                 time.sleep(30)
                 continue
         candado = os.path.join(AQUI, "tpl-usando-teclado.lock")
-        if os.path.isfile(candado) and time.time() - os.path.getmtime(candado) < 20 * 60:
+        if candado_vivo(candado):
             if not getattr(main, "aviso_tpl", False):
                 log("El TPL esta usando el teclado y el mouse: la curva espera para no estorbar.")
                 main.aviso_tpl = True
