@@ -82,8 +82,10 @@ function drawCor() {
   for (const c of cortes) {
     const el = document.createElement("div"); el.className = "cor";
     el.innerHTML = '<div class="cor-h"><b></b><small></small></div><div class="chips"></div>'
-      + '<div class="row2"><input class="mono" inputmode="numeric" maxlength="11" placeholder="Incidencia (11 dígitos)" aria-label="Incidencia">'
-      + '<input class="mono" inputmode="numeric" placeholder="Clientes" aria-label="Clientes afectados"></div><span></span>';
+      + '<div class="row2"><div class="inmic"><input class="mono" inputmode="numeric" maxlength="11" placeholder="Incidencia" aria-label="Incidencia">'
+      + '<button class="mic" type="button" aria-label="Dictar la incidencia" hidden>🎤</button></div>'
+      + '<div class="inmic"><input class="mono" inputmode="numeric" placeholder="Clientes" aria-label="Clientes afectados">'
+      + '<button class="mic" type="button" aria-label="Dictar los clientes" hidden>🎤</button></div></div><span></span>';
     el.querySelector("b").textContent = c.alimentador + (c.se ? " · " + c.se : "");
     el.querySelector("small").textContent = "Corte " + corHHMM(c.desconexion) + (c.estado === "CERRADO" && c.conexion ? " → " + corHHMM(c.conexion) : "");
     const chips = el.querySelector(".chips");
@@ -98,6 +100,9 @@ function drawCor() {
     inc.value = c.inc || ""; cli.value = c.cli || "";
     inc.oninput = () => { c.inc = inc.value.replace(/\D/g, ""); c.fijo = !!c.inc; aviso(); corBoton(); };
     cli.oninput = () => { c.cli = cli.value.replace(/\D/g, ""); };
+    const [micInc, micCli] = el.querySelectorAll(".mic");
+    corMic(micInc, inc, corCompletar);
+    corMic(micCli, cli, n => n);
     const msg = el.querySelector("span");
     const aviso = () => {
       const ok = /^\d{11}$/.test(c.inc || "");
@@ -170,6 +175,33 @@ $("cor-cam").onclick = () => openCam("cor", file => file ? corFoto(file) : $("co
 $("cor-gal").onchange = e => { const f = e.target.files[0]; e.target.value = ""; if (f) corFoto(f); };
 $("cor-thumb").onclick = () => { $("view-img").src = $("view-dl").href = $("cor-thumb").src; viewFrom = "cor"; $("view").hidden = false; history.pushState({ v: "view" }, ""); };
 
+// ---------- dictado ----------
+// «seis uno seis siete uno dos» o «616712» → dígitos. Si se dicen solo los últimos dígitos de la INC,
+// se completa con una incidencia leída en la foto que termine así, o con el inicio de la última que se guardó.
+function corCompletar(n) {
+  if (!n || n.length >= 11) return n.slice(0, 11);
+  const f = corFilas.find(x => incDe(x.id).endsWith(n));
+  if (f) return incDe(f.id);
+  const ult = store.get("cor-ultima-inc", "");
+  return /^\d{11}$/.test(ult) ? ult.slice(0, 11 - n.length) + n : n;
+}
+function corMic(b, inp, arreglar) {
+  if (!Speech) return;
+  b.hidden = false;
+  b.onclick = () => {
+    const rec = new Speech();
+    rec.lang = "es-EC"; rec.interimResults = false; rec.maxAlternatives = 3;
+    rec.onresult = e => {
+      const alts = [...e.results[0]].map(a => norm(a.transcript).toLowerCase().replace(/[a-z]+/g, w => DIGITOS[w] ?? " ").replace(/\D/g, "")).filter(Boolean);
+      const n = arreglar(alts[0] || "");
+      if (n) { inp.value = n; inp.dispatchEvent(new Event("input")); }
+    };
+    rec.onend = () => b.setAttribute("aria-pressed", "false");
+    rec.onerror = e => { if (e.error !== "no-speech" && e.error !== "aborted") alert("No pude usar el micrófono. Revisa el permiso del navegador."); };
+    b.setAttribute("aria-pressed", "true"); rec.start();
+  };
+}
+
 $("cor-send").onclick = async () => {
   const url = corUrl();
   const lista = cortes.filter(c => /^\d{11}$/.test(c.inc || "")).map(c => ({ clave: c.clave, incidencia: c.inc, clientes: c.cli || "" }));
@@ -180,6 +212,7 @@ $("cor-send").onclick = async () => {
   const cl = store.get("cor-clientes", {});
   for (const c of cortes) if (c.cli) cl[squash(c.alimentador)] = c.cli;
   store.set("cor-clientes", cl);
+  store.set("cor-ultima-inc", lista.at(-1).incidencia);
   $("cor-send").disabled = true; corNote("Guardando…");
   try {
     const j = await (await fetch(url + "?ponerInc=" + encodeURIComponent(JSON.stringify(lista)) + "&t=" + Date.now())).json();
