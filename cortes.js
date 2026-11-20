@@ -12,7 +12,9 @@ let cortes = [];          // [{ clave, desconexion, conexion, se, alimentador, e
 let corFilas = [];        // filas leídas del Navegador (se juntan las de varias fotos: página 1/2…)
 let corLeyendo = 0;
 
-const corUrl = () => store.get("hoja-cortes", "");
+// Enlace /exec de la hoja «Cortes de carga» (el mismo del Excel). Si se pega otro en Conexión, ese manda.
+const COR_URL = "https://script.google.com/macros/s/AKfycbxg9L1ILa-B-k9mK5wpKT3VyAfXPUG8WnNS8PnPa76KdvxEHpelEpn4GE-fp686-tYRnw/exec";
+const corUrl = () => store.get("hoja-cortes", "") || COR_URL;
 // "16/11/2026 18:44:4" o "16/11/2026 18:33" → milisegundos (los segundos cortados cuentan como 0)
 function corHora(s) {
   const m = /(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?/.exec(String(s || ""));
