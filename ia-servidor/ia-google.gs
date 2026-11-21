@@ -143,8 +143,20 @@ punto: el código del equipo tal como aparece en la columna del punto, p. ej. "0
 Si la columna tiene solo 2 corrientes, el equipo es monofásico: la 1.ª es la fase y la 2.ª el neutro; pon la fase en a y deja b y c vacíos.
 Lista cada columna de corrientes con el nombre del equipo que está junto a ella (p. ej. "REC. POMONA", "RIO VERDE - 93"). Copia los decimales tal como se ven, con punto.
 nombres: todos los nombres de equipos que se leen en la pantalla.` };
+  if (tipo === "cortes") return { sistema: SIS_COR, texto: "Lee esta foto del Navegador de incidencias.", esquema: obj_({
+    filas: { type: "array", items: obj_({
+      id: { type: "string", description: "Número de 11 dígitos de la columna ID (sin «INC»)" },
+      creada: { type: "string", description: "Fecha de creación tal cual: dd/mm/aaaa hh:mm:ss (si está cortada, lo que se vea)" },
+      cuadrilla: { type: "string", description: "Columna Cuadrillas tal cual (vacía si no tiene)" },
+      alimentador: { type: "string", description: "Columna Alimentador actual tal cual, p. ej. \"01_04_La Joya\"" },
+      color: { type: "string", description: "Color del texto de la fila: tomate, magenta, azul, gris, negro u otro" } }) } }) };
   return null;
 }
+const SIS_COR = `Lees fotos tomadas con un celular a la pantalla del ADMS de EEASA (Ambato, Ecuador), pestaña "Navegador de incidencias".
+La pantalla puede tener trama (moiré), reflejos o estar inclinada: lee con cuidado cada dígito y no inventes. Si un dato no se ve, déjalo vacío.
+Es una tabla con columnas ID ("INC 11041701915", 11 dígitos), Fecha de creación ("16/11/2026 17:35:05", a veces cortada por el ancho de la columna),
+Cuadrillas (p. ej. "01TTT--CECON--…", o vacía), Tipo y Alimentador actual (p. ej. "01_17_Sumaco"; el primer número es la empresa, el segundo la subestación;
+a veces el nombre sale cortado: "01_01_Puerto Artu"). Lista TODAS las filas que se ven, de arriba abajo, aunque estén resaltadas o en otro color.`;
 
 // Llamada a la API de Claude (Apps Script no tiene SDK de Anthropic: va por HTTP).
 // Esfuerzo medio: con Haiku sigue siendo rápido (Apps Script corta las llamadas de más de un minuto).
@@ -179,7 +191,7 @@ function claude_(p, imagen) {
 // ---------- aplicación web ----------
 function json_(o) { return ContentService.createTextOutput(JSON.stringify(o)).setMimeType(ContentService.MimeType.JSON); }
 function doGet() { return json_({ ok: true, servicio: "despacho-ia" }); }
-// El celular manda { clave, tipo: "probar" | "inc" | "fal1" | "fal2" | "fal3", imagen (base64 JPEG), listas }
+// El celular manda { clave, tipo: "probar" | "inc" | "fal1" | "fal2" | "fal3" | "cortes", imagen (base64 JPEG), listas }
 function doPost(e) {
   try {
     const q = JSON.parse(e.postData.contents);

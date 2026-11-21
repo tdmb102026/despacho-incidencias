@@ -318,6 +318,8 @@ function drawSlots() {
 const FX = { inc: "fx-inc", clientes: "fx-cli", ia: "fx-ia", ib: "fx-ib", ic: "fx-ic", kw: "fx-kw", origen: "fx-ori", causa: "fx-cau", subcausa: "fx-sub" };
 function fillEditor() {
   const f = cur; if (!f) return;
+  // Clientes del alimentador (lista de fer) si la foto no los trajo
+  if (!f.clientes && f.eq && f.eq.tipo === "alim") f.clientes = clientesDe(f.eq.se, f.eq.nombre);
   for (const [k, id] of Object.entries(FX)) if (document.activeElement !== $(id)) $(id).value = f[k] || "";
   chips($("fx-c-inc"), f.incs || [], f.inc, v => { f.inc = v; changed(); });
   if (document.activeElement !== $("fx-eq")) $("fx-eq").value = eqLabel(f.eq);
