@@ -95,7 +95,7 @@ const SE_NUM = { 1: "Samanga", 2: "Atocha", 3: "Península", 4: "Oriente", 5: "L
   10: "Píllaro", 11: "Baños", 12: "Puyo", 13: "Mushullacta", 14: "Tena", 15: "Totoras", 16: "Puyo 2", 17: "Tena Norte", 18: "Agoyán",
   19: "Batán", 20: "Pilahuín", 21: "Ahuano" };
 function alimFila(txt) {
-  const m = String(txt || "").match(/(\d{1,2})\s*_+\s*([^_]+)$/);
+  const m = String(txt || "").match(/(\d{1,2})\s*[_\-–.]+\s*([^_\-–]+)$/);
   if (!m) return [];
   const pre = squash(m[2]);
   if (pre.length < 2) return [];
