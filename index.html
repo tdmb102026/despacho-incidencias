@@ -540,10 +540,10 @@ function selPri(se, corto, sola) {
   const back = sola ? atras("Grupos", selGrupo) : atras(corto || "Subestaciones", () => selSE(corto));
   gridFill(ALIM.filter(a => a[0] === se).map(a => a[1]), name => { history.back(); pickPri(name); }, back);
 }
-// Cómo empieza la lista: por grupo de despacho o directo por subestación (se recuerda en el teléfono)
+// Cuando no se encuentra el primario, la lista empieza por grupo de despacho, luego subestación y primario
 const LISTAS = ["Por grupo", "Por subestación"];
-const listaPri = () => { try { return localStorage.getItem("lista-pri") || LISTAS[0]; } catch { return LISTAS[0]; } };
-// Al entrar a un modo se va directo al menú (la lista empieza como se eligió la última vez; si no, por grupo)
+const listaPri = () => LISTAS[0]; // siempre por grupo
+// Al entrar a un modo se va directo al menú
 function pedirLista(nuevo) {
   history[nuevo ? "pushState" : "replaceState"]({ v: "home" }, ""); show("home");
 }
