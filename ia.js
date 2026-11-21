@@ -77,12 +77,11 @@ async function iaRead(file, tipo, listas, signal) {
 // para cada ubicación, así la próxima vez sale solo.
 let iaUbic = "";
 const ubicKey = u => squash(String(u).split(" - ")[0]);
+// Lo aprendido (ubicación y palabras del recuadro amarillo) ya no se usa: con la columna de alimentadores basta
 function iaPrims(out) {
   const ubic = out.ubicacion || "", com = out.comentario || "";
-  const learned = ubic ? iaUbicPri(ubic) : "";
   const found = parseOCR(ubic + "\n" + com, com).prims;
-  // Lo aprendido del recuadro amarillo va al final: solo decide si lo demás no dio nada
-  const resto = [learned, out.primario, ...found, iaComPri(com)].map(v => v && priName(v));
+  const resto = [out.primario, ...found].map(v => v && priName(v));
   // Si la columna deja dudas («_10_SA»: San Andrés, San Miguelito…), decide lo que se leyó en el resto de la foto
   const cands = conAlim() ? alimFila(out.alim_fila) : [];
   const fila = cands.length === 1 ? cands[0] : resto.find(v => v && cands.includes(v)) || "";
@@ -180,55 +179,19 @@ function iaComPri(com) {
 }
 const palTexto = c => Object.entries(c).map(([p, n]) => p + ":" + n).join("|");
 const palLeer = t => Object.fromEntries(String(t).split("|").map(x => x.split(":")).filter(([p, n]) => p && +n > 0).map(([p, n]) => [p, +n]));
-let iaCom = "", palHecho = "";
-function iaLearnCom(pri) {
-  const hecho = $("f-inc").value + "|" + pri;
-  if (!iaCom || hecho === palHecho) return;
-  palHecho = hecho;
-  const m = store.get("pal-primario", {}), sube = [];
-  for (const w of palabras(iaCom)) {
-    const K = palBuscar(w, m) || w;
-    m[K] = m[K] || {}; m[K][pri] = (m[K][pri] || 0) + 1;
-    sube.push({ t: "pal", k: K, v: palTexto(m[K]) });
-  }
-  store.set("pal-primario", m);
-  iaSubir(sube);
-}
-function iaLearn() {
-  const pri = priName($("f-pri").value), k = ubicKey(iaUbic);
-  if (modoIA && pri) iaLearnCom(pri);
-  if (!modoIA || !k || !pri) return;
-  const m = store.get("ubic-primario", {});
-  if (m[k] === pri) return;
-  m[k] = pri; store.set("ubic-primario", m);
-  iaSubir([{ t: "ubic", k, v: pri }]);
-}
+let iaCom = "";
 // Lo aprendido también va a la hoja de fer (pestaña «Aprendido»), así lo saben todos los celulares
 function iaSubir(cosas) {
   if (cosas.length && modoIA && iaClave()) iaPost({ clave: iaClave(), tipo: "aprender", cosas }).catch(() => {});
 }
-// Junta lo de la hoja con lo del celular; lo que este celular sabía y la hoja no, se sube
+// De la hoja solo se traen los códigos del SCADA (Fallas internas); los de este celular que la hoja no tiene, se suben
 function iaBajar(apr) {
   if (!apr) return;
-  const u = store.get("ubic-primario", {}), c = store.get("codigos", {});
-  iaSubir([
-    ...Object.entries(u).filter(([k]) => !apr.ubic[k]).map(([k, v]) => ({ t: "ubic", k, v })),
-    ...Object.entries(c).filter(([k]) => !apr.codigo[k]).map(([k, v]) => ({ t: "codigo", k, v: v.join("|") })),
-    ...Object.entries(store.get("pal-primario", {})).filter(([k]) => !(apr.pal || {})[k]).map(([k, v]) => ({ t: "pal", k, v: palTexto(v) })),
-  ].slice(0, 200));
-  // Palabras: por cada primario se queda la cuenta más alta entre la hoja y el celular
-  const pm = store.get("pal-primario", {});
-  for (const [k, t] of Object.entries(apr.pal || {})) {
-    const h = palLeer(t); pm[k] = pm[k] || {};
-    for (const [p, n] of Object.entries(h)) pm[k][p] = Math.max(pm[k][p] || 0, n);
-  }
-  store.set("pal-primario", pm);
-  store.set("ubic-primario", { ...u, ...apr.ubic });
+  const c = store.get("codigos", {});
+  iaSubir(Object.entries(c).filter(([k]) => !(apr.codigo || {})[k]).map(([k, v]) => ({ t: "codigo", k, v: v.join("|") })).slice(0, 200));
   for (const [k, v] of Object.entries(apr.codigo || {})) { const [tipo, nombre] = v.split("|"); if (nombre) c[k] = [tipo, nombre]; }
   store.set("codigos", c);
 }
-$("share").addEventListener("click", iaLearn);
-$("copy").addEventListener("click", iaLearn);
 async function iaReadInc(file, signal) {
   const { out, canvas } = await iaRead(file, "inc", { motivos: MOTIVOS.map(m => m[0]), primarios: ALIM.map(a => a[1]), alim: conAlim() }, signal);
   const six = d => String(d).replace(/\D/g, "").slice(-6);

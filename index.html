@@ -151,7 +151,7 @@ details pre{white-space:pre-wrap;word-break:break-word;font-family:var(--mono);f
 <div class="wrap">
   <header>
     <h1>Despacho de Incidencias</h1>
-    <span class="eyebrow">EEASA · CECON · v62</span>
+    <span class="eyebrow">EEASA · CECON · v63</span>
   </header>
 
   <!-- Al abrir: con IA (más precisa, con contraseña) o sin IA (el lector del celular, como siempre) -->
@@ -357,7 +357,7 @@ details pre{white-space:pre-wrap;word-break:break-word;font-family:var(--mono);f
 </div>
 
 <script src="ocr/tesseract.min.js"></script>
-<script src="datos/fallas.js?v=62"></script>
+<script src="datos/fallas.js?v=63"></script>
 <script>
 const ALIM = [["Agoyán", "Ulba", "Ag. Baños", ""], ["Agoyán", "Río Verde", "Ag. Baños", ""], ["Atocha", "Pinllo", "Reparaciones CECON", "Móvil 30 Rural"], ["Atocha", "Pilishurco", "Reparaciones CECON", "Móvil 30 Rural"], ["Atocha", "Atocha", "Reparaciones CECON", ""], ["Atocha", "Maldonado", "Reparaciones CECON", ""], ["Atocha", "Martínez", "Reparaciones CECON", ""], ["Atocha", "La Victoria", "Reparaciones CECON", ""], ["Baños", "Baños", "Ag. Baños", ""], ["Baños", "San Vicente", "Ag. Baños", ""], ["Baños", "Pititic", "Ag. Baños", ""], ["Batán", "España", "Reparaciones CECON", ""], ["Batán", "Pérez de Anda", "Reparaciones CECON", ""], ["Batán", "Urbina", "Reparaciones CECON", ""], ["Batán", "Ficoa", "Reparaciones CECON", ""], ["Batán", "Miraflores", "Reparaciones CECON", ""], ["Batán", "Quisapincha", "Móvil 30 Rural", ""], ["Batán", "El Tropezón", "Móvil 30 Rural", "Reparaciones CECON"], ["Huachi", "Santa Rosa", "Móvil 30 Rural", ""], ["Huachi", "Cervantes", "Reparaciones CECON", ""], ["Huachi", "Magdalena", "Reparaciones CECON", "Móvil 30 Rural"], ["Huachi", "José Peralta", "Reparaciones CECON", ""], ["Huachi", "Víctor Hugo", "Reparaciones CECON", ""], ["Huachi", "Mall de los Andes", "Reparaciones CECON", ""], ["Huachi", "Shopping Ambato", "Reparaciones CECON", ""], ["Huachi", "Miñarica", "Reparaciones CECON", ""], ["Huachi", "Carmelitas", "Reparaciones CECON", "Móvil 30 Rural"], ["Huachi", "Manuelita Sáenz", "Reparaciones CECON", ""], ["Huachi", "Industrial", "Reparaciones CECON", "Móvil 30 Rural"], ["Loreto", "Ingahurco", "Reparaciones CECON", ""], ["Loreto", "Pradera", "Reparaciones CECON", ""], ["Loreto", "Catiglata", "Reparaciones CECON", ""], ["Loreto", "Unidad Nacional", "Reparaciones CECON", ""], ["Loreto", "Letamendi", "Reparaciones CECON", ""], ["Loreto", "Cashapamba", "Reparaciones CECON", ""], ["Loreto", "Ferroviaria", "Reparaciones CECON", ""], ["Loreto", "Subterránea", "Reparaciones CECON", ""], ["Loreto", "12 de Noviembre", "Reparaciones CECON", ""], ["Loreto", "San Antonio", "Reparaciones CECON", ""], ["Montalvo", "Montalvo", "Reparaciones CECON", "Móvil 30 Rural;Agencia Quero CECON"], ["Montalvo", "Manzana de Oro", "Reparaciones CECON", ""], ["Montalvo", "Tisaleo", "Móvil 30 Rural", "Reparaciones CECON"], ["Montalvo", "Huachi Grande", "Reparaciones CECON", "Móvil 30 Rural"], ["Mushullacta", "Pablo Sexto", "DZOP INCIDENCIAS", ""], ["Mushullacta", "Simón Bolívar", "DZOP INCIDENCIAS", ""], ["Mushullacta", "Palora", "DZOP INCIDENCIAS", ""], ["Mushullacta", "Consuelo", "DZOP INCIDENCIAS", ""], ["Oriente", "Bolivariana", "Reparaciones CECON", ""], ["Oriente", "Techo Propio", "Reparaciones CECON", ""], ["Oriente", "Real Audiencia", "Reparaciones CECON", ""], ["Oriente", "La Joya", "Reparaciones CECON", ""], ["Oriente", "El Cóndor", "Reparaciones CECON", ""], ["Oriente", "Universidad", "Reparaciones CECON", ""], ["Oriente", "American Park", "Reparaciones CECON", ""], ["Pelileo", "El Tambo", "Ag. Pelileo", ""], ["Pelileo", "Olmedo", "Ag. Pelileo", ""], ["Pelileo", "Pelileo", "Ag. Pelileo", ""], ["Pelileo", "Patate", "Ag. Pelileo", ""], ["Pelileo", "La Moya", "Ag. Pelileo", ""], ["Pelileo", "Huambaló", "Ag. Pelileo", ""], ["Península", "Izamba", "Reparaciones CECON", ""], ["Península", "Quillán", "Reparaciones CECON", "Móvil 30 Rural"], ["Península", "Indoamérica", "Reparaciones CECON", ""], ["Península", "Península", "Reparaciones CECON", ""], ["Península", "Viñas", "Reparaciones CECON", ""], ["Pilahuín", "Pilahuín", "Móvil 30 Rural", ""], ["Pilahuín", "Pasa", "Móvil 30 Rural", ""], ["Pilahuín", "Yatzaputzán", "Móvil 30 Rural", ""], ["Pilahuín", "Chibuleo", "Móvil 30 Rural", ""], ["Píllaro", "Píllaro", "Ag. Píllaro", ""], ["Píllaro", "San Miguelito", "Ag. Píllaro", ""], ["Píllaro", "Santa Marianita", "Ag. Píllaro", ""], ["Píllaro", "Marcos Espinel", "Ag. Píllaro", ""], ["Píllaro", "San Andrés", "Ag. Píllaro", ""], ["Puyo", "Mera", "DZOP INCIDENCIAS", ""], ["Puyo", "Shell", "DZOP INCIDENCIAS", ""], ["Puyo", "Central", "DZOP INCIDENCIAS", ""], ["Puyo", "Circunvalación", "DZOP INCIDENCIAS", ""], ["Puyo", "Capricho", "DZOP INCIDENCIAS", ""], ["Puyo", "Tarqui", "DZOP INCIDENCIAS", ""], ["Puyo 2", "Calvario", "DZOP INCIDENCIAS", ""], ["Puyo 2", "Veracruz", "DZOP INCIDENCIAS", ""], ["Puyo 2", "Arajuno", "DZOP INCIDENCIAS", ""], ["Puyo 2", "Eloy Alfaro", "DZOP INCIDENCIAS", ""], ["Puyo 2", "La Merced", "DZOP INCIDENCIAS", ""], ["Puyo 2", "Unión Base", "DZOP INCIDENCIAS", ""], ["Quero", "Benítez", "Agencia Quero CECON", "Ag. Pelileo"], ["Quero", "Quero", "Agencia Quero CECON", ""], ["Quero", "Cevallos", "Agencia Quero CECON", ""], ["Quero", "Mocha", "Agencia Quero CECON", ""], ["Quero", "Hualcanga", "Agencia Quero CECON", ""], ["Samanga", "El Pisque", "Reparaciones CECON", "Móvil 30 Rural"], ["Samanga", "Paso Lateral", "Reparaciones CECON", ""], ["Samanga", "Macasto", "Reparaciones CECON", "Móvil 30 Rural"], ["Samanga", "Cunchibamba", "Reparaciones CECON", ""], ["Samanga", "PIA 1", "Reparaciones CECON", ""], ["Samanga", "Puerto Arturo", "Reparaciones CECON", "Móvil 30 Rural"], ["Samanga", "Camino Real", "Reparaciones CECON", "Móvil 30 Rural"], ["Samanga", "PIA 2", "Reparaciones CECON", ""], ["Samanga", "Plasticaucho", "Reparaciones CECON", ""], ["Tena", "Amazonas", "DZON ATENCIÓN INCIDENCIAS", ""], ["Tena", "Arosemena", "DZON ATENCIÓN INCIDENCIAS", ""], ["Tena", "Paushiyacu", "DZON ATENCIÓN INCIDENCIAS", ""], ["Tena", "Perimetral", "DZON ATENCIÓN INCIDENCIAS", ""], ["Tena", "Puerto Napo", "DZON ATENCIÓN INCIDENCIAS", ""], ["Tena Norte", "Sumaco", "DZON ATENCIÓN INCIDENCIAS", ""], ["Tena Norte", "Muyuna", "DZON ATENCIÓN INCIDENCIAS", ""], ["Tena Norte", "Archidona", "DZON ATENCIÓN INCIDENCIAS", ""], ["Tena Norte", "Jumandi", "DZON ATENCIÓN INCIDENCIAS", ""], ["Totoras", "Totoras", "Reparaciones CECON", ""], ["Totoras", "Bioalimentar", "Reparaciones CECON", ""], ["Totoras", "Palagua", "Reparaciones CECON", "Móvil 30 Rural"], ["Totoras", "San Francisco", "Reparaciones CECON", ""], ["Totoras", "Picaihua", "Reparaciones CECON", "Móvil 30 Rural"], ["Totoras", "Salasaca", "Reparaciones CECON", "Ag. Pelileo"]]; // [subestación, alimentador, grupo principal, grupo alterno ("a;b")]
 const EXTRA = { "Huambaló": ["PINGUE"], "Ulba": ["ULBABANOS"], "Puerto Napo": ["MISAHUALLI"], "Pilishurco": ["PILISURCO"], "Pititic": ["PITITIG"], "El Pisque": ["PISQUE"], "Picaihua": ["PICAIGUA"] }; // sectores de la Ubicación que pertenecen a un primario
@@ -834,21 +834,6 @@ $("cam-torch").onclick = () => {
   const on = $("cam-torch").getAttribute("aria-pressed") !== "true";
   track.applyConstraints({ advanced: [{ torch: on }] }).then(() => $("cam-torch").setAttribute("aria-pressed", String(on))).catch(() => {});
 };
-// Nitidez de una imagen: varianza del laplaciano en el centro, reducido a 400 px de ancho (rápido)
-function sharpness(img, w, h) {
-  const W = 400, H = Math.round(400 * h / w), c = document.createElement("canvas");
-  c.width = W; c.height = H;
-  const g = c.getContext("2d", { willReadFrequently: true });
-  g.drawImage(img, w * 0.2, h * 0.2, w * 0.6, h * 0.6, 0, 0, W, H);
-  const d = g.getImageData(0, 0, W, H).data;
-  let sum = 0, sum2 = 0, n = 0;
-  const L = i => d[i * 4 + 1];
-  for (let y = 1; y < H - 1; y++) for (let x = 1; x < W - 1; x++) {
-    const i = y * W + x, v = 4 * L(i) - L(i - 1) - L(i + 1) - L(i - W) - L(i + W);
-    sum += v; sum2 += v * v; n++;
-  }
-  return sum2 / n - (sum / n) ** 2;
-}
 // Hacia dónde está girado el celular, por la gravedad (funciona aunque la pantalla no gire)
 let gravity = null;
 addEventListener("devicemotion", e => { const a = e.accelerationIncludingGravity; if (a && a.x != null) gravity = a; });
@@ -858,30 +843,20 @@ function deviceAngle() {
   if (Math.abs(x) > Math.abs(y)) return x > 0 ? 90 : 270;
   return y >= 0 ? 0 : 180;
 }
-// Al tocar el disparador se enfoca al centro y se dispara apenas la imagen queda nítida (cuando deja de mejorar),
+// Al tocar el disparador se toma la imagen de ese instante (el enfoque continuo ya la mantiene nítida),
 // girada según cómo se sostiene el celular, para que la foto quede derecha
 $("cam-shot").onclick = async () => {
   if (!track) return;
-  $("cam-shot").disabled = true; $("cam-wait").hidden = false;
   const v = $("cam-v"), vw = v.videoWidth, vh = v.videoHeight;
+  if (!vw) return;
+  $("cam-shot").disabled = true;
   const dev = deviceAngle(), scr = (screen.orientation && screen.orientation.angle) || 0;
   const turn = dev == null ? 0 : ((dev - scr) % 360 + 360) % 360; // grados a girar en sentido antihorario
-  const t = track;
-  t.applyConstraints({ advanced: [{ pointsOfInterest: [{ x: 0.5, y: 0.5 }], focusMode: "single-shot" }] }).catch(() => {});
-  let best = null, bestS = -1, peor = 0;
-  for (let i = 0; i < 8 && vw && peor < 2; i++) {
-    await new Promise(r => setTimeout(r, i ? 120 : 200));
-    const sc = sharpness(v, vw, vh);
-    if (sc <= bestS) { peor++; continue; }
-    peor = 0; bestS = sc; best = best || document.createElement("canvas");
-    const side = turn % 180 !== 0;
-    best.width = side ? vh : vw; best.height = side ? vw : vh;
-    const g = best.getContext("2d");
-    g.setTransform(1, 0, 0, 1, 0, 0);
-    g.translate(best.width / 2, best.height / 2); g.rotate(-turn * Math.PI / 180);
-    g.drawImage(v, -vw / 2, -vh / 2);
-  }
-  t.applyConstraints({ advanced: [{ focusMode: "continuous" }] }).catch(() => {});
+  const best = document.createElement("canvas"), side = turn % 180 !== 0;
+  best.width = side ? vh : vw; best.height = side ? vw : vh;
+  const g = best.getContext("2d");
+  g.translate(best.width / 2, best.height / 2); g.rotate(-turn * Math.PI / 180);
+  g.drawImage(v, -vw / 2, -vh / 2);
   const blob = best && await new Promise(r => best.toBlob(r, "image/jpeg", 0.92));
   $("cam-shot").disabled = false; $("cam-wait").hidden = true;
   await new Promise(r => { addEventListener("popstate", r, { once: true }); history.back(); });
@@ -1027,9 +1002,9 @@ $("share").onclick = async () => {
 };
 </script>
 
-<script src="fallas.js?v=62"></script>
-<script src="ia.js?v=62"></script>
-<script src="cortes.js?v=62"></script>
+<script src="fallas.js?v=63"></script>
+<script src="ia.js?v=63"></script>
+<script src="cortes.js?v=63"></script>
 <script>
 // Actualización: al volver a la app se busca versión nueva; si llega, se recarga sola en el inicio
 // o aparece un aviso para tocar (así no se pierde una incidencia a medio enviar)
