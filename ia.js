@@ -90,7 +90,7 @@ function iaPrims(out) {
 // ---------- Columna «Alimentador actual» del Navegador de incidencias ----------
 // La fila resaltada viene como «01_02_Pinllo» o cortada («_02_Pin»): el número es la subestación
 // y las primeras letras bastan para saber cuál de sus alimentadores es.
-const conAlim = () => { try { return localStorage.getItem("con-alim") === "con"; } catch { return false; } };
+const conAlim = () => true; // Con IA siempre se lee la columna de alimentadores
 const SE_NUM = { 1: "Samanga", 2: "Atocha", 3: "Península", 4: "Oriente", 5: "Loreto", 6: "Montalvo", 7: "Huachi", 8: "Quero", 9: "Pelileo",
   10: "Píllaro", 11: "Baños", 12: "Puyo", 13: "Mushullacta", 14: "Tena", 15: "Totoras", 16: "Puyo 2", 17: "Tena Norte", 18: "Agoyán",
   19: "Batán", 20: "Pilahuín", 21: "Ahuano" };
