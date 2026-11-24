@@ -102,8 +102,16 @@ function alimFila(txt) {
   const se = squash(SE_NUM[+m[1]] || "");
   // «La Pradera» también se busca como «Pradera»
   const formas = p => [p.k, squash(p.name.replace(/^(LA|EL|LOS|LAS)\s+/i, ""))];
-  const cabe = p => formas(p).some(f => f.startsWith(pre) || (pre.length > f.length && pre.startsWith(f)));
-  let c = PRIS.filter(cabe);
+  const cabe = (p, q = pre) => formas(p).some(f => f.startsWith(q) || (q.length > f.length && q.startsWith(f)));
+  // Dentro de la subestación: si la IA leyó mal una letra del final («La Ma» por «La Me»), se acortan las letras
+  // hasta que quede uno solo (con «La» en Puyo 2 solo está La Merced)
+  const delSE = PRIS.filter(p => p.ks === se);
+  for (let L = pre.length; se && L >= 2; L--) {
+    const n = [...new Set(delSE.filter(p => cabe(p, pre.slice(0, L))).map(p => p.name))];
+    if (n.length === 1) return n;
+    if (n.length > 1) break;
+  }
+  let c = PRIS.filter(p => cabe(p));
   // con errores de lectura: el que más se parece al mismo largo
   if (!c.length) c = PRIS.filter(p => pre.length >= 4 && formas(p).some(f => parecido(sonido(f.slice(0, pre.length)), sonido(pre)) >= 0.8));
   const enSE = c.filter(p => p.ks === se);
