@@ -198,7 +198,7 @@ async function iaReadInc(file, signal) {
   const tabs = (out.pestanas || []).map(six).filter(d => d.length === 6);
   const inc = six(out.activa || "") || tabs.at(-1) || "";
   const phones = [...new Set((out.telefonos || []).map(t => t.replace(/\D/g, "")).filter(t => /^0\d{9}$/.test(t)))];
-  return { inc, incs: [...new Set([...tabs, inc].filter(Boolean))], motivo: out.motivo || "", prims: iaPrims(out), ubic: out.ubicacion || "", com: out.comentario || "",
+  return { inc, incs: [...new Set([...tabs, inc].filter(Boolean))], motivo: out.motivo || "", prims: iaPrims(out), alim: out.alim_fila || "", ubic: out.ubicacion || "", com: out.comentario || "",
     phones, giro: out.giro || 0, canvas, raw: JSON.stringify(out, null, 1) };
 }
 async function processFileIA(file) {

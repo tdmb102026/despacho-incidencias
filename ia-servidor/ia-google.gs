@@ -107,7 +107,9 @@ La pantalla puede tener trama (moiré), reflejos o estar inclinada o girada: lee
 // Solo si el operador eligió «Con alimentadores»
 const SIS_ALIM = `
 - A la izquierda puede verse la columna "Alimentador actual" del Navegador de incidencias, con filas como "01_02_Pinllo" (a veces cortadas: "_02_Pin").
-  La fila de la incidencia es la que está resaltada (fondo gris o seleccionada). Copia esa fila tal cual en alim_fila, con su número; si no hay ninguna resaltada, deja "".`;
+  La fila de la incidencia es la seleccionada: se distingue de las demás (que tienen letras azules) porque tiene fondo gris o rosado
+  y letras rosadas o moradas, a veces muy pálidas. Léela aunque se vea desteñida: basta con el número y las primeras letras (p. ej. "01_14_Pu").
+  Copia esa fila tal cual en alim_fila, con su número; si de verdad no hay ninguna seleccionada, deja "".`;
 const SIS_FAL = `Lees fotos tomadas con un celular a pantallas del SCADA/ADMS de EEASA (Ambato, Ecuador) para llenar la bitácora de fallas internas.
 La pantalla puede tener trama (moiré), reflejos o estar inclinada o girada: lee con cuidado cada dígito, coma y punto, y no inventes. Si un dato no se ve, déjalo vacío.
 Las fechas van como dd/mm/aaaa hh:mm:ss (sin milisegundos).`;
