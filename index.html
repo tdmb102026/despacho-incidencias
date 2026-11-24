@@ -151,7 +151,7 @@ details pre{white-space:pre-wrap;word-break:break-word;font-family:var(--mono);f
 <div class="wrap">
   <header>
     <h1>Despacho de Incidencias</h1>
-    <span class="eyebrow">EEASA · CECON · v66</span>
+    <span class="eyebrow">EEASA · CECON · v67</span>
   </header>
 
   <!-- Al abrir: con IA (más precisa, con contraseña) o sin IA (el lector del celular, como siempre) -->
@@ -343,7 +343,7 @@ details pre{white-space:pre-wrap;word-break:break-word;font-family:var(--mono);f
 </div>
 
 <script src="ocr/tesseract.min.js"></script>
-<script src="datos/fallas.js?v=66"></script>
+<script src="datos/fallas.js?v=67"></script>
 <script>
 const ALIM = [["Agoyán", "Ulba", "Ag. Baños", ""], ["Agoyán", "Río Verde", "Ag. Baños", ""], ["Atocha", "Pinllo", "Reparaciones CECON", "Móvil 30 Rural"], ["Atocha", "Pilishurco", "Reparaciones CECON", "Móvil 30 Rural"], ["Atocha", "Atocha", "Reparaciones CECON", ""], ["Atocha", "Maldonado", "Reparaciones CECON", ""], ["Atocha", "Martínez", "Reparaciones CECON", ""], ["Atocha", "La Victoria", "Reparaciones CECON", ""], ["Baños", "Baños", "Ag. Baños", ""], ["Baños", "San Vicente", "Ag. Baños", ""], ["Baños", "Pititic", "Ag. Baños", ""], ["Batán", "España", "Reparaciones CECON", ""], ["Batán", "Pérez de Anda", "Reparaciones CECON", ""], ["Batán", "Urbina", "Reparaciones CECON", ""], ["Batán", "Ficoa", "Reparaciones CECON", ""], ["Batán", "Miraflores", "Reparaciones CECON", ""], ["Batán", "Quisapincha", "Móvil 30 Rural", ""], ["Batán", "El Tropezón", "Móvil 30 Rural", "Reparaciones CECON"], ["Huachi", "Santa Rosa", "Móvil 30 Rural", ""], ["Huachi", "Cervantes", "Reparaciones CECON", ""], ["Huachi", "Magdalena", "Reparaciones CECON", "Móvil 30 Rural"], ["Huachi", "José Peralta", "Reparaciones CECON", ""], ["Huachi", "Víctor Hugo", "Reparaciones CECON", ""], ["Huachi", "Mall de los Andes", "Reparaciones CECON", ""], ["Huachi", "Shopping Ambato", "Reparaciones CECON", ""], ["Huachi", "Miñarica", "Reparaciones CECON", ""], ["Huachi", "Carmelitas", "Reparaciones CECON", "Móvil 30 Rural"], ["Huachi", "Manuelita Sáenz", "Reparaciones CECON", ""], ["Huachi", "Industrial", "Reparaciones CECON", "Móvil 30 Rural"], ["Loreto", "Ingahurco", "Reparaciones CECON", ""], ["Loreto", "Pradera", "Reparaciones CECON", ""], ["Loreto", "Catiglata", "Reparaciones CECON", ""], ["Loreto", "Unidad Nacional", "Reparaciones CECON", ""], ["Loreto", "Letamendi", "Reparaciones CECON", ""], ["Loreto", "Cashapamba", "Reparaciones CECON", ""], ["Loreto", "Ferroviaria", "Reparaciones CECON", ""], ["Loreto", "Subterránea", "Reparaciones CECON", ""], ["Loreto", "12 de Noviembre", "Reparaciones CECON", ""], ["Loreto", "San Antonio", "Reparaciones CECON", ""], ["Montalvo", "Montalvo", "Reparaciones CECON", "Móvil 30 Rural;Agencia Quero CECON"], ["Montalvo", "Manzana de Oro", "Reparaciones CECON", ""], ["Montalvo", "Tisaleo", "Móvil 30 Rural", "Reparaciones CECON"], ["Montalvo", "Huachi Grande", "Reparaciones CECON", "Móvil 30 Rural"], ["Mushullacta", "Pablo Sexto", "DZOP INCIDENCIAS", ""], ["Mushullacta", "Simón Bolívar", "DZOP INCIDENCIAS", ""], ["Mushullacta", "Palora", "DZOP INCIDENCIAS", ""], ["Mushullacta", "Consuelo", "DZOP INCIDENCIAS", ""], ["Oriente", "Bolivariana", "Reparaciones CECON", ""], ["Oriente", "Techo Propio", "Reparaciones CECON", ""], ["Oriente", "Real Audiencia", "Reparaciones CECON", ""], ["Oriente", "La Joya", "Reparaciones CECON", ""], ["Oriente", "El Cóndor", "Reparaciones CECON", ""], ["Oriente", "Universidad", "Reparaciones CECON", ""], ["Oriente", "American Park", "Reparaciones CECON", ""], ["Pelileo", "El Tambo", "Ag. Pelileo", ""], ["Pelileo", "Olmedo", "Ag. Pelileo", ""], ["Pelileo", "Pelileo", "Ag. Pelileo", ""], ["Pelileo", "Patate", "Ag. Pelileo", ""], ["Pelileo", "La Moya", "Ag. Pelileo", ""], ["Pelileo", "Huambaló", "Ag. Pelileo", ""], ["Península", "Izamba", "Reparaciones CECON", ""], ["Península", "Quillán", "Reparaciones CECON", "Móvil 30 Rural"], ["Península", "Indoamérica", "Reparaciones CECON", ""], ["Península", "Península", "Reparaciones CECON", ""], ["Península", "Viñas", "Reparaciones CECON", ""], ["Pilahuín", "Pilahuín", "Móvil 30 Rural", ""], ["Pilahuín", "Pasa", "Móvil 30 Rural", ""], ["Pilahuín", "Yatzaputzán", "Móvil 30 Rural", ""], ["Pilahuín", "Chibuleo", "Móvil 30 Rural", ""], ["Píllaro", "Píllaro", "Ag. Píllaro", ""], ["Píllaro", "San Miguelito", "Ag. Píllaro", ""], ["Píllaro", "Santa Marianita", "Ag. Píllaro", ""], ["Píllaro", "Marcos Espinel", "Ag. Píllaro", ""], ["Píllaro", "San Andrés", "Ag. Píllaro", ""], ["Puyo", "Mera", "DZOP INCIDENCIAS", ""], ["Puyo", "Shell", "DZOP INCIDENCIAS", ""], ["Puyo", "Central", "DZOP INCIDENCIAS", ""], ["Puyo", "Circunvalación", "DZOP INCIDENCIAS", ""], ["Puyo", "Capricho", "DZOP INCIDENCIAS", ""], ["Puyo", "Tarqui", "DZOP INCIDENCIAS", ""], ["Puyo 2", "Calvario", "DZOP INCIDENCIAS", ""], ["Puyo 2", "Veracruz", "DZOP INCIDENCIAS", ""], ["Puyo 2", "Arajuno", "DZOP INCIDENCIAS", ""], ["Puyo 2", "Eloy Alfaro", "DZOP INCIDENCIAS", ""], ["Puyo 2", "La Merced", "DZOP INCIDENCIAS", ""], ["Puyo 2", "Unión Base", "DZOP INCIDENCIAS", ""], ["Quero", "Benítez", "Agencia Quero CECON", "Ag. Pelileo"], ["Quero", "Quero", "Agencia Quero CECON", ""], ["Quero", "Cevallos", "Agencia Quero CECON", ""], ["Quero", "Mocha", "Agencia Quero CECON", ""], ["Quero", "Hualcanga", "Agencia Quero CECON", ""], ["Samanga", "El Pisque", "Reparaciones CECON", "Móvil 30 Rural"], ["Samanga", "Paso Lateral", "Reparaciones CECON", ""], ["Samanga", "Macasto", "Reparaciones CECON", "Móvil 30 Rural"], ["Samanga", "Cunchibamba", "Reparaciones CECON", ""], ["Samanga", "PIA 1", "Reparaciones CECON", ""], ["Samanga", "Puerto Arturo", "Reparaciones CECON", "Móvil 30 Rural"], ["Samanga", "Camino Real", "Reparaciones CECON", "Móvil 30 Rural"], ["Samanga", "PIA 2", "Reparaciones CECON", ""], ["Samanga", "Plasticaucho", "Reparaciones CECON", ""], ["Tena", "Amazonas", "DZON ATENCIÓN INCIDENCIAS", ""], ["Tena", "Arosemena", "DZON ATENCIÓN INCIDENCIAS", ""], ["Tena", "Paushiyacu", "DZON ATENCIÓN INCIDENCIAS", ""], ["Tena", "Perimetral", "DZON ATENCIÓN INCIDENCIAS", ""], ["Tena", "Puerto Napo", "DZON ATENCIÓN INCIDENCIAS", ""], ["Tena Norte", "Sumaco", "DZON ATENCIÓN INCIDENCIAS", ""], ["Tena Norte", "Muyuna", "DZON ATENCIÓN INCIDENCIAS", ""], ["Tena Norte", "Archidona", "DZON ATENCIÓN INCIDENCIAS", ""], ["Tena Norte", "Jumandi", "DZON ATENCIÓN INCIDENCIAS", ""], ["Totoras", "Totoras", "Reparaciones CECON", ""], ["Totoras", "Bioalimentar", "Reparaciones CECON", ""], ["Totoras", "Palagua", "Reparaciones CECON", "Móvil 30 Rural"], ["Totoras", "San Francisco", "Reparaciones CECON", ""], ["Totoras", "Picaihua", "Reparaciones CECON", "Móvil 30 Rural"], ["Totoras", "Salasaca", "Reparaciones CECON", "Ag. Pelileo"]]; // [subestación, alimentador, grupo principal, grupo alterno ("a;b")]
 const EXTRA = { "Huambaló": ["PINGUE"], "Ulba": ["ULBABANOS"], "Puerto Napo": ["MISAHUALLI"], "Pilishurco": ["PILISURCO"], "Pititic": ["PITITIG"], "El Pisque": ["PISQUE"], "Picaihua": ["PICAIGUA"] }; // sectores de la Ubicación que pertenecen a un primario
@@ -764,44 +764,63 @@ function setZoomInc(z) {
   chips($("c-zoom"), ["1×", "1.5×", "2×"], z + "×", v => setZoomInc(parseFloat(v)));
 }
 setZoomInc(zoomInc());
+// Abre la cámara trasera con enfoque continuo y el zoom z
+const CAM_VIDEO = { facingMode: { ideal: "environment" }, width: { ideal: 3840 }, height: { ideal: 2160 } };
+let camZoom = 1;
+async function startCam(z) {
+  stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: CAM_VIDEO });
+  track = stream.getVideoTracks()[0];
+  const caps = track.getCapabilities ? track.getCapabilities() : {};
+  const c = {};
+  if ((caps.focusMode || []).includes("continuous")) c.focusMode = "continuous";
+  if ((caps.exposureMode || []).includes("continuous")) c.exposureMode = "continuous";
+  if (caps.zoom && z > 1 && z <= caps.zoom.max) c.zoom = z;
+  if (Object.keys(c).length) await track.applyConstraints({ advanced: [c] }).catch(() => {});
+  $("cam-v").srcObject = stream;
+  return caps;
+}
 // from: pantalla a la que vuelve; target: qué hacer con la foto (por defecto, leer la incidencia)
 async function openCam(from, target) {
   camFrom = from; camTarget = target;
+  let caps;
   try {
-    stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: { ideal: "environment" }, width: { ideal: 3840 }, height: { ideal: 2160 } } });
+    // Incidencias: con zoom se toma desde más lejos, donde el lente sí enfoca, y la letra sale grande
+    camZoom = from === "inc" ? zoomInc() : 1;
+    caps = await startCam(camZoom);
   } catch { if (target) target(null); else $("photo").click(); return; }
-  track = stream.getVideoTracks()[0];
-  const caps = track.getCapabilities ? track.getCapabilities() : {};
-  if ((caps.focusMode || []).includes("continuous")) track.applyConstraints({ advanced: [{ focusMode: "continuous" }] }).catch(() => {});
   $("cam-torch").hidden = !caps.torch; $("cam-torch").setAttribute("aria-pressed", "false");
   const zb = $("cam-zoom"); zb.innerHTML = "";
   if (caps.zoom) {
     const levels = [1, 1.5, 2].filter(z => z >= caps.zoom.min && z <= caps.zoom.max);
-    // Incidencias: con zoom se toma desde más lejos, donde el lente sí enfoca, y la letra sale grande
-    const z0 = from === "inc" ? levels.filter(z => z <= zoomInc()).at(-1) || 1 : 1;
+    camZoom = levels.filter(z => z <= camZoom).at(-1) || 1;
     if (levels.length > 1) for (const z of levels) {
       const b = document.createElement("button");
-      b.type = "button"; b.textContent = (z === 1.5 ? "1.5" : z) + "×"; b.setAttribute("aria-pressed", String(z === z0));
+      b.type = "button"; b.textContent = (z === 1.5 ? "1.5" : z) + "×"; b.setAttribute("aria-pressed", String(z === camZoom));
       b.onclick = () => {
+        camZoom = z;
         track.applyConstraints({ advanced: [{ zoom: z }] }).catch(() => {}); zb.querySelectorAll("button").forEach(x => x.setAttribute("aria-pressed", String(x === b)));
         if (camFrom === "inc") setZoomInc(z);
       };
       zb.appendChild(b);
     }
-    if (z0 > 1 && levels.length > 1) track.applyConstraints({ advanced: [{ zoom: z0 }] }).catch(() => {});
   }
-  $("cam-v").srcObject = stream; $("cam").hidden = false;
+  $("cam").hidden = false;
   history.pushState({ v: "cam" }, "");
 }
-$("cam-v").onclick = e => {
-  if (!track) return;
-  const r = e.currentTarget.getBoundingClientRect(), f = $("cam-focus");
+// Tocar la imagen hace lo mismo que tapar y destapar la cámara con el dedo: se apaga y se vuelve a prender,
+// y así vuelve a medir la luz y a enfocar desde cero
+let reenfocando = false;
+$("cam-v").onclick = async e => {
+  if (!track || reenfocando) return;
+  reenfocando = true;
+  const f = $("cam-focus");
   f.style.left = e.clientX + "px"; f.style.top = e.clientY + "px"; f.hidden = false;
-  setTimeout(() => { f.hidden = true; }, 900);
-  const x = (e.clientX - r.left) / r.width, y = (e.clientY - r.top) / r.height;
-  track.applyConstraints({ advanced: [{ pointsOfInterest: [{ x, y }], focusMode: "single-shot" }] })
-    .then(() => setTimeout(() => track && track.applyConstraints({ advanced: [{ focusMode: "continuous" }] }).catch(() => {}), 2500))
-    .catch(() => {});
+  $("cam-shot").disabled = true; $("cam-wait").textContent = "Enfocando…"; $("cam-wait").hidden = false;
+  stream.getTracks().forEach(t => t.stop());
+  try { await startCam(camZoom); } catch { reenfocando = false; f.hidden = true; $("cam-wait").hidden = true; $("cam-shot").disabled = false; history.back(); return; }
+  if ($("cam-torch").getAttribute("aria-pressed") === "true") track.applyConstraints({ advanced: [{ torch: true }] }).catch(() => {});
+  // un momento para que la imagen se asiente antes de dejar disparar
+  setTimeout(() => { reenfocando = false; f.hidden = true; $("cam-wait").hidden = true; $("cam-shot").disabled = false; }, 700);
 };
 $("cam-x").onclick = () => history.back();
 $("view-x").onclick = () => history.back();
@@ -978,9 +997,9 @@ $("share").onclick = async () => {
 };
 </script>
 
-<script src="fallas.js?v=66"></script>
-<script src="ia.js?v=66"></script>
-<script src="cortes.js?v=66"></script>
+<script src="fallas.js?v=67"></script>
+<script src="ia.js?v=67"></script>
+<script src="cortes.js?v=67"></script>
 <script>
 // Actualización: al volver a la app se busca versión nueva; si llega, se recarga sola en el inicio
 // o aparece un aviso para tocar (así no se pierde una incidencia a medio enviar)
