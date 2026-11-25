@@ -24,7 +24,7 @@ import bosnis
 from bosnis import log, MESES, carpeta_existente, leer_claves, visibles, abrir_chrome
 from selenium.webdriver.common.keys import Keys
 
-VERSION = "demanda v6"
+VERSION = "demanda v7"
 AQUI = bosnis.AQUI
 RAIZ_PARTES = r"D:\PARTES OPERACION CECON\MisDocumentos\excel\PARTES {Y}"
 CARPETA_CURVAS = "DEMANDA EEASA CCND {Y}"            # dentro de PARTES {Y}, luego carpeta del MES
@@ -90,7 +90,7 @@ def plantilla(fecha):
     raise RuntimeError("No encuentro ninguna curva anterior en %s" % carpeta_curvas(fecha))
 
 
-def hacer_curva(fecha, prueba):
+def hacer_curva(fecha, prueba, rehacer=False):
     origen = buscar_4de4(fecha)
     base = plantilla(fecha)
     ext = os.path.splitext(base)[1]
@@ -102,6 +102,10 @@ def hacer_curva(fecha, prueba):
             os.remove(destino)
     else:
         ya = curva_existente(fecha)
+        if ya and rehacer:
+            log("Borro la curva anterior para crearla de nuevo: %s" % ya)
+            os.remove(ya)
+            ya = None
         if ya:
             log("La curva ya existe, no la toco: %s" % ya)
             return ya
@@ -428,6 +432,7 @@ def main():
     p.add_argument("que", choices=["curva", "correo", "todo"])
     p.add_argument("--fecha", help="AAAA-MM-DD (por defecto: ayer)")
     p.add_argument("--prueba", action="store_true")
+    p.add_argument("--rehacer", action="store_true", help="borra la curva del dia y la vuelve a crear")
     a = p.parse_args()
     fecha = (datetime.datetime.strptime(a.fecha, "%Y-%m-%d").date() if a.fecha
              else datetime.date.today() - datetime.timedelta(days=1))
@@ -438,7 +443,7 @@ def main():
     try:
         archivo = None
         if a.que in ("curva", "todo"):
-            archivo = hacer_curva(fecha, a.prueba)
+            archivo = hacer_curva(fecha, a.prueba, a.rehacer)
         if a.que in ("correo", "todo"):
             if not archivo:
                 archivo = curva_existente(fecha)

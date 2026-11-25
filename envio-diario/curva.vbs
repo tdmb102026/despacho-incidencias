@@ -1,7 +1,7 @@
 ' Llena la curva de carga con Excel (lo llama demanda.py).
 ' Argumentos: archivo4de4 plantilla destino textoA1 tituloGrafico
 Option Explicit
-Dim a, xl, w4, wc, s4, sc, i, v, n, co, h1, h2
+Dim a, xl, w4, wc, s4, sc, i, v, n, co, h1, h2, ceros
 Set a = WScript.Arguments
 Set xl = CreateObject("Excel.Application")
 xl.Visible = False
@@ -23,15 +23,18 @@ If Err.Number <> 0 Then Fallo "no se pudo abrir la curva anterior: " & Err.Descr
 Set sc = wc.Worksheets(1)
 
 n = 0
+ceros = 0
 For i = 0 To 95
   v = s4.Cells(8 + i, 22).Value
   Select Case VarType(v)
     Case 2, 3, 4, 5, 6, 14
       sc.Cells(2 + i, 2).Value = CDbl(v) / 1000
       n = n + 1
+      If CDbl(v) = 0 Then ceros = ceros + 1
   End Select
 Next
 If n <> 96 Then Fallo "la columna V tiene " & n & " valores numericos (deben ser 96)"
+If ceros > 4 Then Fallo "la columna V del 4 de 4 tiene " & ceros & " valores en 0: el 4 de 4 aun no esta completo"
 
 sc.Range("A1").Value = a(3)
 For Each co In sc.ChartObjects
