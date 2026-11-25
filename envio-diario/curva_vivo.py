@@ -30,7 +30,7 @@ from selenium.webdriver.common.keys import Keys
 import bosnis
 from bosnis import log, MESES, leer_claves, login_automatico, visibles
 
-VERSION = "curva en vivo v12"
+VERSION = "curva en vivo v13"
 AQUI = bosnis.AQUI
 PERFIL = os.path.join(AQUI, "perfil-curva")          # Chrome aparte: no choca con diario.bat
 URL_CURVAS = "http://172.20.18.45:666/curvas"
@@ -440,8 +440,10 @@ def main():
             if not datos:
                 log("Sin datos del %s todavia. Lineas vistas: %s" % (fecha_hoja.strftime("%d/%m"), "; ".join(nombres)))
             if pendientes:
-                # bloque seguido desde la primera fila pendiente hasta la ultima con dato
-                desde, hasta = pendientes[0], pendientes[-1]
+                # se reescribe TODO el bloque desde la primera fila del turno, no solo lo nuevo:
+                # si alguien (u otro programa) borro la D en el Sheets, se repara sola cada 15 minutos
+                desde = min(f for f in datos if primera_fila <= f <= ultima_fila)
+                hasta = pendientes[-1]
                 textos = [mw(datos[f]) if f in datos else "" for f in range(desde, hasta + 1)]
                 hora = lambda f: (datetime.datetime(2000, 1, 1) + datetime.timedelta(minutes=15 * (f - 1))).strftime("%H:%M")
                 log("D%d-D%d (%s a %s): %s" % (desde, hasta, hora(desde), hora(hasta), " ".join(textos[-4:])))
