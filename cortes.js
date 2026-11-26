@@ -132,8 +132,8 @@ async function corBajar() {
     const antes = Object.fromEntries(cortes.map(c => [c.clave, c]));
     cortes = j.cortes.map(c => {
       const a = antes[c.clave];
-      // los clientes de un alimentador casi no cambian: se proponen los de la última vez
-      return a ? { ...c, inc: a.inc, cli: a.cli, fijo: a.fijo } : { ...c, cli: store.get("cor-clientes", {})[squash(c.alimentador)] || clientesDe(c.se, c.alimentador) };
+      // clientes de la tabla por alimentador; si no está, los de la última vez
+      return a ? { ...c, inc: a.inc, cli: a.cli, fijo: a.fijo } : { ...c, cli: clientesDe(c.se, c.alimentador) || store.get("cor-clientes", {})[squash(c.alimentador)] };
     });
     corUnir(); corNote("");
   } catch (e) {
